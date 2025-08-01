@@ -1,0 +1,36 @@
+{
+  "name": "apppuentecampomar",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "electron-store": "^8.1.0",
+    "express": "^5.1.0",
+    "ngrok": "^5.0.0-beta.2",
+    "node-thermal-printer": "^4.5.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.campomar.puenteimpresion",
+    "productName": "Puente Impresion Campomar",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

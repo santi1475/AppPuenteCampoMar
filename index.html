@@ -1,82 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="" />
-    <link rel="stylesheet" as="style" onload="this.rel='stylesheet'" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900" />
-    <title>Stitch Design</title>
-    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64," />
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <meta charset="UTF-8">
+    <title>Puente de Impresión</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body style='font-family: Inter, "Noto Sans", sans-serif;'>
-    <div class="relative flex size-full min-h-screen flex-col bg-slate-50 group/design-root overflow-x-hidden">
-        <div class="layout-container flex h-full grow flex-col">
-            <header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#e7edf4] px-10 py-3">
-                <div class="flex items-center gap-4 text-[#0d141c]">
-                    <div class="size-4">
-                        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M42.4379 44C42.4379 44 36.0744 33.9038 41.1692 24C46.8624 12.9336 42.2078 4 42.2078 4L7.01134 4C7.01134 4 11.6577 12.932 5.96912 23.9969C0.876273 33.9029 7.27094 44 7.27094 44L42.4379 44Z" fill="currentColor"></path></svg>
-                    </div>
-                    <h2 class="text-[#0d141c] text-lg font-bold leading-tight tracking-[-0.015em]">Print Server Manager</h2>
-                </div>
-            </header>
-            <div class="px-40 flex flex-1 justify-center py-5">
-                <div class="layout-content-container flex flex-col w-full max-w-[512px] py-5">
-                    
-                    <div class="rounded-lg border border-[#cedbe8] bg-white p-4 mb-4">
-                      <h2 class="text-[#0d141c] tracking-light text-xl font-bold leading-tight text-center pb-3">Estado del Servidor</h2>
-                      <p class="text-[#49739c] text-base font-normal leading-normal text-center" id="server-status">Iniciando...</p>
-                      <p class="text-[#49739c] text-base font-normal leading-normal text-center pt-1" id="printer-status">En espera...</p>
-                    </div>
+<body>
+    <div class="container">
+        <h1>Puente de Impresión</h1>
+        <div class="card">
+            <h2>Estado</h2>
+            <p>Estado del Servidor: <span id="server-status" class="status pending">Iniciando...</span></p>
+            <p>Estado de la Impresora: <span id="printer-status" class="status pending">En espera...</span></p>
+        </div>
 
-                    <div class="rounded-lg border border-[#cedbe8] bg-white p-4 mb-4">
-                      <label class="flex flex-col w-full">
-                          <p class="text-[#0d141c] text-base font-medium leading-normal pb-2">URL Pública (Read-Only)</p>
-                          <input id="ngrok-url" readonly class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[#0d141c] focus:outline-0 focus:ring-0 border border-[#cedbe8] bg-slate-200 cursor-not-allowed h-14 p-[15px] text-base font-normal leading-normal" value="Cargando..." />
-                      </label>
-                    </div>
-                    
-                    <div id="config-section" class="rounded-lg border border-[#cedbe8] bg-white p-4 mb-4" style="display: none;">
-                        <h3 class="text-[#0d141c] text-lg font-bold leading-tight tracking-[-0.015em] pb-2">Configuración</h3>
-                        <div class="py-3">
-                            <label class="flex flex-col w-full">
-                                <p class="text-[#0d141c] text-base font-medium leading-normal pb-2">Dirección IP de la Impresora</p>
-                                <input id="printer-ip" placeholder="Ej: 192.168.1.123" class="form-input flex w-full rounded-lg text-[#0d141c] border border-[#cedbe8] bg-slate-50 h-14 p-[15px]" />
-                            </label>
-                        </div>
-                        <div class="py-3">
-                            <label class="flex flex-col w-full">
-                                <p class="text-[#0d141c] text-base font-medium leading-normal pb-2">Ngrok Token</p>
-                                <input id="ngrok-token" placeholder="Pega tu token de Ngrok aquí" class="form-input flex w-full rounded-lg text-[#0d141c] border border-[#cedbe8] bg-slate-50 h-14 p-[15px]" />
-                            </label>
-                        </div>
-                        <div class="flex px-4 py-3 gap-4">
-                            <button id="save-button" class="flex flex-1 cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-[#0c7ff2] text-slate-50 text-sm font-bold">
-                                <span class="truncate">Guardar y Reiniciar</span>
-                            </button>
-                            <button id="test-print-button" class="flex flex-1 cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-[#17a2b8] text-slate-50 text-sm font-bold">
-                                <span class="truncate">Imprimir Prueba</span>
-                            </button>
-                        </div>
-                    </div>
+        <div class="card">
+            <h2>Conexión</h2>
+            <p>URL Pública (para tu app web):</p>
+            <div id="ngrok-url">Cargando...</div>
+        </div>
 
-                    <div id="unlock-section" class="rounded-lg border border-[#cedbe8] bg-white p-4 mb-4">
-                        <h3 class="text-[#0d141c] text-lg font-bold leading-tight tracking-[-0.015em] pb-2">Acceder a Configuración</h3>
-                        <div class="py-3">
-                            <label class="flex flex-col w-full">
-                                <p class="text-[#0d141c] text-base font-medium leading-normal pb-2">Contraseña</p>
-                                <input id="password-input" type="password" placeholder="Ingresa la contraseña" class="form-input flex w-full rounded-lg text-[#0d141c] border border-[#cedbe8] bg-slate-50 h-14 p-[15px]" />
-                            </label>
-                        </div>
-                        <div class="flex px-4 py-3">
-                            <button id="unlock-button" class="flex flex-1 cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-[#6c757d] text-slate-50 text-sm font-bold">
-                                <span class="truncate">Desbloquear</span>
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
+        <div id="config-section" class="card" style="display: none;">
+            <h2>Configuración ⚙️</h2>
+            <div>
+                <label for="printer-ip">Dirección IP de la Impresora:</label>
+                <input type="text" id="printer-ip" class="config-input" placeholder="Ej: 192.168.1.100">
+            </div>
+            <div style="margin-top: 1rem;">
+                <label for="ngrok-token">Token de Ngrok:</label>
+                <input type="text" id="ngrok-token" class="config-input" placeholder="Pega tu token de autenticación de Ngrok aquí">
+            </div>
+            <div>
+                <button id="save-button" class="action-button save-button">Guardar y Reiniciar</button>
+                <button id="test-print-button" class="action-button test-button">Imprimir Prueba</button>
             </div>
         </div>
-        <script src="./renderer.js"></script>
+        
+        <div id="unlock-section" class="card">
+            <h2>Acceder a Configuración</h2>
+            <div>
+                <label for="password-input">Contraseña:</label>
+                <input type="password" id="password-input" class="config-input">
+            </div>
+            <div>
+                <button id="unlock-button" class="action-button unlock-button">Desbloquear 🔓</button>
+            </div>
+        </div>
     </div>
+    <script src="./renderer.js"></script>
 </body>
 </html>

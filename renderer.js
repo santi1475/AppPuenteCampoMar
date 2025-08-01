@@ -12,9 +12,13 @@ const testPrintButton = document.getElementById('test-print-button');
 const unlockSection = document.getElementById('unlock-section');
 const passwordInput = document.getElementById('password-input');
 const unlockButton = document.getElementById('unlock-button');
-
-unlockButton.addEventListener('click', () => {
-    if (passwordInput.value === '1234') {
+// En renderer.js
+unlockButton.addEventListener('click', async () => {
+    const password = passwordInput.value;
+    // Llama a la función segura del backend para verificar la contraseña
+    const isCorrect = await window.electronAPI.verifyPassword(password);
+    
+    if (isCorrect) {
         unlockSection.style.display = 'none';
         configSection.style.display = 'block';
     } else {

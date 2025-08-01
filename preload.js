@@ -9,5 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   testPrint: () => ipcRenderer.send('test-print'),
   
   onUpdateStatus: (callback) => ipcRenderer.on('update-status', (event, ...args) => callback(...args)),
-  onSetNgrokUrl: (callback) => ipcRenderer.on('set-ngrok-url', (event, ...args) => callback(...args))
+  onSetNgrokUrl: (callback) => ipcRenderer.on('set-ngrok-url', (event, ...args) => callback(...args)),
+  
+  verifyPassword: (password) => ipcRenderer.invoke('verify-password', password)
 });

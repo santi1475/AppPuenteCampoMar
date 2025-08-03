@@ -1,4 +1,3 @@
-// main.js (versión mejorada)
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const express = require('express');
@@ -11,7 +10,6 @@ require('dotenv').config();
 const store = new Store();
 let mainWindow;
 
-// Función para enviar mensajes a la ventana de forma segura
 function sendToWindow(channel, ...args) {
     if (mainWindow) {
         mainWindow.webContents.send(channel, ...args);
@@ -21,14 +19,14 @@ function sendToWindow(channel, ...args) {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 500,
-        height: 650, // Un poco más de alto para comodidad
+        height: 650, 
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
         },
     });
     mainWindow.loadFile('index.html');
     mainWindow.on('closed', () => {
-        mainWindow = null; // Limpia la referencia al cerrar
+        mainWindow = null; 
     });
 }
 
@@ -36,7 +34,7 @@ app.whenReady().then(() => {
     createWindow();
     startPrintServer();
     startNgrokTunnel();
-    // Configura que la app inicie con el sistema (Windows y macOS)
+
     app.setLoginItemSettings({ openAtLogin: true });
 });
 
@@ -99,7 +97,7 @@ function startPrintServer() {
     localApp.post('/print', async (req, res) => {
         let printer;
         try {
-            const { orderDetails } = req.body; // Suponiendo que usas esto
+            const { orderDetails } = req.body;
             const printerIp = store.get('printerIp');
             
             if (!printerIp) {
@@ -112,13 +110,10 @@ function startPrintServer() {
                 interface: `tcp://${printerIp}`,
                 timeout: 3000
             });
-            
-            // --- Aquí va tu lógica para formatear el ticket ---
             printer.alignCenter();
             printer.println("Nuevo Pedido:");
             printer.println(orderDetails || "Sin detalles."); // Ejemplo
             printer.cut();
-            // ------------------------------------------------
             
             await printer.execute();
             sendToWindow('update-status', { printer: 'success' });
@@ -135,7 +130,6 @@ function startPrintServer() {
         sendToWindow('update-status', { server: 'running' });
     });
     
-    // EXCEPCIÓN: Maneja el error si el puerto ya está en uso
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
             console.error('Error: El puerto 4000 ya está en uso.');

@@ -1,6 +1,4 @@
-/* ========================================= */
-/* Variables de Color y Tema        */
-/* ========================================= */
+/* Color and Theme variables     */
 :root {
   --bg-color: #f0f2f5;
   --card-bg-color: #ffffff;
@@ -25,9 +23,7 @@
   --input-border-focus: #80bdff;
 }
 
-/* ========================================= */
-/* Estilos Globales y Cuerpo        */
-/* ========================================= */
+/* Global styles and body        */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -51,9 +47,8 @@ body {
   max-width: 600px;
 }
 
-/* ========================================= */
-/* Tipografía                   */
-/* ========================================= */
+/* Typography                   */
+
 h1 {
   font-size: 2.5rem;
   font-weight: 700;
@@ -78,9 +73,8 @@ label {
   margin-bottom: 0.5rem;
 }
 
-/* ========================================= */
-/* Componentes de UI              */
-/* ========================================= */
+/* UI components              */
+
 .card {
   background: var(--card-bg-color);
   padding: 1.5rem;

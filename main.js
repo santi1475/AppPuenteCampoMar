@@ -71,7 +71,8 @@ ipcMain.on('test-print', async () => {
         const printer = new ThermalPrinter({
             type: PrinterTypes.EPSON,
             interface: `tcp://${printerIp}`,
-            timeout: 3000
+            timeout: 3000,
+            encoding: 'UTF-8'
         });
         printer.alignCenter();
         printer.println("Página de Prueba");
@@ -84,6 +85,43 @@ ipcMain.on('test-print', async () => {
     } catch (error) {
         console.error("Error en impresión de prueba:", error.message);
         sendToWindow('update-status', { printer: 'error' });
+    }
+});
+
+ipcMain.on('check-printer-status', async () => {
+    try {
+        const printerIp = store.get('printerIp');
+        if (!printerIp) {
+            sendToWindow('update-status', { 
+                printer: 'pending',
+                message: 'Esperando configuración de IP...' 
+            });
+            return;
+        }
+        const printer = new ThermalPrinter({
+            type: PrinterTypes.EPSON,
+            interface: `tcp://${printerIp}`,
+            timeout: 2500,
+            encoding: 'UTF-8'
+        });
+
+        const isConnected = await printer.isPrinterConnected();
+
+        if (isConnected) {
+            sendToWindow('update-status', { 
+                printer: 'success',
+                message: 'Conectada y en espera ✅' 
+            });
+        } else {
+            throw new Error("La impresora no respondió a la conexión.");
+        }
+
+    } catch (error) {
+        console.error("Error de conexión con la impresora:", error.message);
+        sendToWindow('update-status', { 
+            printer: 'error',
+            message: 'Error de conexión ❌' 
+        });
     }
 });
 
@@ -108,7 +146,8 @@ function startPrintServer() {
             printer = new ThermalPrinter({
                 type: PrinterTypes.EPSON,
                 interface: `tcp://${printerIp}`,
-                timeout: 3000
+                timeout: 3000,
+                encoding: 'UTF-8'
             });
             printer.alignCenter();
             printer.println("Nuevo Pedido:");

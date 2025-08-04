@@ -15,7 +15,7 @@ const unlockButton = document.getElementById('unlock-button');
 
 unlockButton.addEventListener('click', async () => {
     const password = passwordInput.value;
-    
+
     const isCorrect = await window.electronAPI.verifyPassword(password);
     
     if (isCorrect) {
@@ -48,8 +48,9 @@ window.electronAPI.onUpdateStatus((status) => {
     if (status.printer) {
         const messages = {
             'printing': { text: 'Imprimiendo... ⏳', class: 'pending' },
-            'success': { text: 'Última impresión OK ✅', class: 'running' },
-            'error': { text: 'Error de conexión ❌', class: 'error' }
+            'success': { text: status.message || 'Última impresión OK ✅', class: 'running' },
+            'error': { text: status.message || 'Error de conexión ❌', class: 'error' },
+            'pending': { text: status.message || 'En espera...', class: 'pending'}
         };
         printerStatusEl.textContent = messages[status.printer].text;
         printerStatusEl.className = `status ${messages[status.printer].class}`;
@@ -64,3 +65,8 @@ window.electronAPI.onLoadConfig((config) => {
     printerIpInput.value = config.printerIp || '';
     ngrokTokenInput.value = config.ngrokToken || '';
 });
+
+setInterval(() => {
+    console.log("Verificando estado de la impresora...");
+    window.electronAPI.checkPrinterStatus();
+}, 30000);

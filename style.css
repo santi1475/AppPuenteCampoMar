@@ -89,6 +89,7 @@ label {
   box-shadow: 0 6px 16px var(--shadow-color);
 }
 
+
 .status {
   padding: 6px 12px;
   border-radius: 20px;
@@ -151,6 +152,9 @@ label {
   font-weight: 600;
   font-size: 1rem;
   transition: background-color 0.2s, transform 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .action-button:hover {
@@ -169,10 +173,16 @@ label {
 }
 
 .test-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   background-color: var(--secondary-action-color);
 }
 .test-button:hover {
   background-color: var(--secondary-action-hover);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .unlock-button {

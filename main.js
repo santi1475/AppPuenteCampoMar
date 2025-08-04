@@ -5,7 +5,24 @@ const cors = require('cors');
 const ngrok = require('ngrok');
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
 const Store = require('electron-store');
-require('dotenv').config(); 
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
+
+let supabase;
+
+function getSupabaseClient() {
+    if (!supabase) {
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseKey) {
+            console.error('Error crítico: Las variables de entorno SUPABASE_URL y SUPABASE_ANON_KEY no están definidas en el archivo .env.');
+            return null;
+        }
+        supabase = createClient(supabaseUrl, supabaseKey);
+    }
+    return supabase;
+}
 
 const store = new Store();
 let mainWindow;
@@ -19,14 +36,14 @@ function sendToWindow(channel, ...args) {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 500,
-        height: 650, 
+        height: 650,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
         },
     });
     mainWindow.loadFile('index.html');
     mainWindow.on('closed', () => {
-        mainWindow = null; 
+        mainWindow = null;
     });
 }
 
@@ -34,21 +51,19 @@ app.whenReady().then(() => {
     createWindow();
     startPrintServer();
     startNgrokTunnel();
-
     app.setLoginItemSettings({ openAtLogin: true });
 });
 
 // --- MANEJADORES DE IPC ---
 
 ipcMain.handle('verify-password', (event, password) => {
-    // La comparación se hace de forma segura en el proceso principal
     const secret = process.env.SECRET_PASSWORD || 'default_password';
     return password === secret;
 });
 
 ipcMain.on('request-initial-config', (event) => {
     event.reply('load-config', {
-        printerIp: store.get('printerIp', process.env.PRINTER_IP), 
+        printerIp: store.get('printerIp', process.env.PRINTER_IP),
         ngrokToken: store.get('ngrokToken', process.env.NGROK_TOKEN)
     });
 });
@@ -56,7 +71,7 @@ ipcMain.on('request-initial-config', (event) => {
 ipcMain.on('save-config', (event, config) => {
     store.set('printerIp', config.printerIp);
     store.set('ngrokToken', config.ngrokToken);
-    app.relaunch(); // Reinicia la aplicación para aplicar cambios
+    app.relaunch();
     app.exit();
 });
 
@@ -71,12 +86,11 @@ ipcMain.on('test-print', async () => {
         const printer = new ThermalPrinter({
             type: PrinterTypes.EPSON,
             interface: `tcp://${printerIp}`,
-            timeout: 3000,
-            encoding: 'UTF-8'
+            timeout: 3000
         });
         printer.alignCenter();
-        printer.println("Página de Prueba");
-        printer.println("Conexión Exitosa ✅");
+        printer.println("Pagina de Prueba");
+        printer.println("Conexion Exitosa ✅");
         printer.println(`Fecha: ${new Date().toLocaleString()}`);
         printer.cut();
         await printer.execute();
@@ -92,36 +106,25 @@ ipcMain.on('check-printer-status', async () => {
     try {
         const printerIp = store.get('printerIp');
         if (!printerIp) {
-            sendToWindow('update-status', { 
-                printer: 'pending',
-                message: 'Esperando configuración de IP...' 
-            });
+            sendToWindow('update-status', { printer: 'pending', message: 'Esperando configuración de IP...' });
             return;
         }
         const printer = new ThermalPrinter({
             type: PrinterTypes.EPSON,
             interface: `tcp://${printerIp}`,
-            timeout: 2500,
-            encoding: 'UTF-8'
+            timeout: 2500
         });
 
         const isConnected = await printer.isPrinterConnected();
 
         if (isConnected) {
-            sendToWindow('update-status', { 
-                printer: 'success',
-                message: 'Conectada y en espera ✅' 
-            });
+            sendToWindow('update-status', { printer: 'success', message: 'Conectada y en espera ✅' });
         } else {
             throw new Error("La impresora no respondió a la conexión.");
         }
-
     } catch (error) {
         console.error("Error de conexión con la impresora:", error.message);
-        sendToWindow('update-status', { 
-            printer: 'error',
-            message: 'Error de conexión ❌' 
-        });
+        sendToWindow('update-status', { printer: 'error', message: 'Error de conexión ❌' });
     }
 });
 
@@ -146,12 +149,11 @@ function startPrintServer() {
             printer = new ThermalPrinter({
                 type: PrinterTypes.EPSON,
                 interface: `tcp://${printerIp}`,
-                timeout: 3000,
-                encoding: 'UTF-8'
+                timeout: 3000
             });
             printer.alignCenter();
             printer.println("Nuevo Pedido:");
-            printer.println(orderDetails || "Sin detalles."); // Ejemplo
+            printer.println(orderDetails || "Sin detalles.");
             printer.cut();
             
             await printer.execute();
@@ -193,9 +195,40 @@ async function startNgrokTunnel() {
         const url = await ngrok.connect({ proto: 'http', addr: 4000 });
         console.log(`Túnel de Ngrok establecido en: ${url}`);
         sendToWindow('set-ngrok-url', url);
+
+        const supabaseClient = getSupabaseClient();
+        if (!supabaseClient) return;
+
+        // 1. Actualizar URL en Supabase
+        const { error: updateError } = await supabaseClient
+            .from('configuracion')
+            .update({ valor: url })
+            .eq('nombre_setting', 'printer_url');
+
+        if (updateError) {
+            console.error('Error al actualizar la URL en Supabase:', updateError.message);
+        } else {
+            console.log('URL actualizada en Supabase exitosamente.');
+        }
+        
+        // 2. Verificar el valor recién escrito
+        console.log('--- Verificando valor en Supabase ---');
+        const { data: configData, error: fetchError } = await supabaseClient
+            .from('configuracion')
+            .select('valor')
+            .eq('nombre_setting', 'printer_url')
+            .single();
+
+        if (fetchError) {
+            console.error('Error al leer la URL desde Supabase:', fetchError.message);
+        } else if (configData) {
+            console.log(`✅ Valor recuperado de Supabase: ${configData.valor}`);
+        } else {
+            console.log('No se encontró el valor en Supabase.');
+        }
+
     } catch (error) {
         console.error('Error al iniciar Ngrok:', error.message);
-        // Envía un error más específico si es posible
         const errorMessage = error.body?.details?.err || 'Error de conexión. Revisa el token y tu red.';
         sendToWindow('set-ngrok-url', `Error en Ngrok: ${errorMessage}`);
     }

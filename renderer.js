@@ -1,4 +1,3 @@
-// renderer.js
 const serverStatusEl = document.getElementById('server-status');
 const printerStatusEl = document.getElementById('printer-status');
 const ngrokUrlEl = document.getElementById('ngrok-url');
@@ -8,8 +7,8 @@ const printerIpInput = document.getElementById('printer-ip');
 const ngrokTokenInput = document.getElementById('ngrok-token');
 const saveButton = document.getElementById('save-button');
 const testPrintButton = document.getElementById('test-print-button');
-const refreshButton = document.getElementById('refresh-button'); // NUEVO
-const closeSettingsButton = document.getElementById('close-settings-button'); // NUEVO
+const refreshButton = document.getElementById('refresh-button'); 
+const closeSettingsButton = document.getElementById('close-settings-button'); 
 
 const unlockSection = document.getElementById('unlock-section');
 const passwordInput = document.getElementById('password-input');
@@ -28,7 +27,6 @@ unlockButton.addEventListener('click', async () => {
     }
 });
 
-// NUEVO: Listener para el botón de cerrar configuración
 closeSettingsButton.addEventListener('click', () => {
     configSection.style.display = 'none';
     unlockSection.style.display = 'block';
@@ -49,7 +47,6 @@ testPrintButton.addEventListener('click', () => {
 refreshButton.addEventListener('click', () => {
     window.electronAPI.relaunchApp();
 });
-
 
 window.electronAPI.requestInitialConfig();
 

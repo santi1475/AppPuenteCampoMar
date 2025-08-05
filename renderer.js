@@ -8,6 +8,8 @@ const printerIpInput = document.getElementById('printer-ip');
 const ngrokTokenInput = document.getElementById('ngrok-token');
 const saveButton = document.getElementById('save-button');
 const testPrintButton = document.getElementById('test-print-button');
+const refreshButton = document.getElementById('refresh-button'); // NUEVO
+const closeSettingsButton = document.getElementById('close-settings-button'); // NUEVO
 
 const unlockSection = document.getElementById('unlock-section');
 const passwordInput = document.getElementById('password-input');
@@ -15,7 +17,6 @@ const unlockButton = document.getElementById('unlock-button');
 
 unlockButton.addEventListener('click', async () => {
     const password = passwordInput.value;
-
     const isCorrect = await window.electronAPI.verifyPassword(password);
     
     if (isCorrect) {
@@ -25,6 +26,13 @@ unlockButton.addEventListener('click', async () => {
         alert('Contraseña incorrecta');
         passwordInput.value = '';
     }
+});
+
+// NUEVO: Listener para el botón de cerrar configuración
+closeSettingsButton.addEventListener('click', () => {
+    configSection.style.display = 'none';
+    unlockSection.style.display = 'block';
+    passwordInput.value = '';
 });
 
 saveButton.addEventListener('click', () => {
@@ -37,6 +45,11 @@ saveButton.addEventListener('click', () => {
 testPrintButton.addEventListener('click', () => {
     window.electronAPI.testPrint();
 });
+
+refreshButton.addEventListener('click', () => {
+    window.electronAPI.relaunchApp();
+});
+
 
 window.electronAPI.requestInitialConfig();
 

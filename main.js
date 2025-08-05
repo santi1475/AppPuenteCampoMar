@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -26,6 +26,7 @@ function getSupabaseClient() {
 
 const store = new Store();
 let mainWindow;
+let forceQuit = false; 
 
 function sendToWindow(channel, ...args) {
     if (mainWindow) {
@@ -37,15 +38,65 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 500,
         height: 650,
+        icon: path.join(__dirname, 'print.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
         },
     });
     mainWindow.loadFile('index.html');
+    mainWindow.on('close', (event) => {
+        if (!forceQuit) {
+            const now = new Date();
+            const hour = now.getHours();
+
+            if (hour >= 7 && hour < 12) {
+                event.preventDefault();
+                dialog.showMessageBox(mainWindow, {
+                    type: 'warning',
+                    title: 'Cierre Bloqueado',
+                    message: 'La aplicación no se puede cerrar entre las 7 AM y las 12 PM.',
+                    buttons: ['Aceptar']
+                });
+                return;
+            }
+
+            if (hour >= 12) {
+                event.preventDefault();
+                const choice = dialog.showMessageBoxSync(mainWindow, {
+                    type: 'question',
+                    buttons: ['Sí', 'No'],
+                    title: 'Confirmar Cierre',
+                    message: '¿Estás seguro de que quieres cerrar la aplicación?'
+                });
+                if (choice === 0) {
+                    forceQuit = true;
+                    app.quit();
+                }
+            }
+        }
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
 }
+
+app.on('before-quit', (event) => {
+    if (!forceQuit) {
+        const now = new Date();
+        const hour = now.getHours();
+
+        if (hour >= 7 && hour < 12) {
+            event.preventDefault();
+            return;
+        }
+
+        if (hour >= 12) {
+            event.preventDefault();
+        }
+    }
+});
+
 
 app.whenReady().then(() => {
     createWindow();
@@ -71,6 +122,7 @@ ipcMain.on('request-initial-config', (event) => {
 ipcMain.on('save-config', (event, config) => {
     store.set('printerIp', config.printerIp);
     store.set('ngrokToken', config.ngrokToken);
+    forceQuit = true; 
     app.relaunch();
     app.exit();
 });

@@ -28,7 +28,8 @@
     "appId": "com.campomar.puenteimpresion",
     "productName": "Puente Impresion Campomar",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "print.ico"
     },
     "nsis": {
       "oneClick": false,

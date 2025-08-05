@@ -1,29 +1,28 @@
-/* Color and Theme variables     */
+/* Paleta de colores y variables del tema */
 :root {
-  --bg-color: #f0f2f5;
+  --bg-color: #f4f7f9;
   --card-bg-color: #ffffff;
-  --primary-text-color: #333;
-  --secondary-text-color: #555;
-  --border-color: #e0e0e0;
-  --shadow-color: rgba(0, 0, 0, 0.08);
-
-  --primary-action-color: #007bff;
-  --primary-action-hover: #0056b3;
-  --secondary-action-color: #17a2b8;
-  --secondary-action-hover: #117a8b;
-  --tertiary-action-color: #6c757d;
-  --tertiary-action-hover: #5a6268;
-
-  --status-running-bg: #28a745;
-  --status-error-bg: #dc3545;
-  --status-pending-bg: #ffc107;
-  --status-pending-text: #333;
-
-  --input-bg: #f8f9fa;
-  --input-border-focus: #80bdff;
+  --primary-text-color: #2c3e50;
+  --secondary-text-color: #576574;
+  --border-color: #e4e7eb;
+  --shadow-color: rgba(44, 62, 80, 0.1);
+  --primary-action-color: #3498db;
+  --primary-action-hover: #2980b9;
+  --secondary-action-color: #1abc9c;
+  --secondary-action-hover: #16a085;
+  --tertiary-action-color: #95a5a6;
+  --tertiary-action-hover: #7f8c8d;
+  --danger-action-color: #e74c3c;
+  --danger-action-hover: #c0392b;
+  --status-running-bg: #2ecc71;
+  --status-error-bg: #e74c3c;
+  --status-pending-bg: #f1c40f;
+  --status-text-color: #ffffff;
+  --input-bg: #ecf0f1;
+  --input-border-focus: #3498db;
 }
 
-/* Global styles and body        */
+/* Estilos globales y cuerpo */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -31,7 +30,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
   background-color: var(--bg-color);
   color: var(--primary-text-color);
@@ -40,17 +39,17 @@ body {
   align-items: flex-start;
   min-height: 100vh;
   padding: 2rem 1rem;
+  -webkit-font-smoothing: antialiased;
 }
 
 .container {
   width: 100%;
-  max-width: 600px;
+  max-width: 480px;
 }
 
-/* Typography                   */
-
+/* Tipografía */
 h1 {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   font-weight: 700;
   color: var(--primary-text-color);
   text-align: center;
@@ -58,12 +57,15 @@ h1 {
 }
 
 h2 {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 600;
   color: var(--secondary-text-color);
   margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 2px solid var(--border-color);
   padding-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 label {
@@ -73,29 +75,23 @@ label {
   margin-bottom: 0.5rem;
 }
 
-/* UI components              */
-
+/* Componentes de la UI */
 .card {
   background: var(--card-bg-color);
   padding: 1.5rem;
   border-radius: 12px;
-  box-shadow: 0 4px 12px var(--shadow-color);
+  box-shadow: 0 4px 15px var(--shadow-color);
   margin-bottom: 1.5rem;
   border: 1px solid var(--border-color);
   transition: box-shadow 0.3s ease-in-out;
 }
 
-.card:hover {
-  box-shadow: 0 6px 16px var(--shadow-color);
-}
-
-
 .status {
-  padding: 6px 12px;
-  border-radius: 20px;
-  color: white;
-  font-weight: bold;
-  font-size: 0.9em;
+  padding: 0.4em 0.8em;
+  border-radius: 15px;
+  color: var(--status-text-color);
+  font-weight: 600;
+  font-size: 0.85em;
   display: inline-block;
   margin: 5px;
 }
@@ -103,18 +99,18 @@ label {
 .status.running {
   background-color: var(--status-running-bg);
 }
+
 .status.error {
   background-color: var(--status-error-bg);
 }
+
 .status.pending {
   background-color: var(--status-pending-bg);
-  color: var(--status-pending-text);
-  margin: 5px;
 }
 
 #ngrok-url {
   font-weight: bold;
-  font-family: "Courier New", Courier, monospace;
+  font-family: "SF Mono", "Courier New", Courier, monospace;
   background: var(--input-bg);
   padding: 12px;
   margin-top: 5px;
@@ -122,13 +118,14 @@ label {
   word-wrap: break-word;
   border: 1px dashed var(--border-color);
   color: var(--primary-action-color);
+  text-align: center;
 }
 
 .config-input {
   width: 100%;
   padding: 12px;
   margin-top: 5px;
-  border: 1px solid var(--border-color);
+  border: 2px solid var(--border-color);
   border-radius: 8px;
   background-color: var(--input-bg);
   font-size: 1rem;
@@ -138,23 +135,29 @@ label {
 .config-input:focus {
   outline: none;
   border-color: var(--input-border-focus);
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
 }
 
 .action-button {
+  flex-grow: 1;
   padding: 12px 20px;
   color: white;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  margin-top: 15px;
-  margin-right: 10px;
   font-weight: 600;
   font-size: 1rem;
   transition: background-color 0.2s, transform 0.2s;
   display: flex;
   justify-content: center;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .action-button:hover {
@@ -173,21 +176,30 @@ label {
 }
 
 .test-button {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background-color: var(--secondary-action-color);
 }
 .test-button:hover {
   background-color: var(--secondary-action-hover);
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 .unlock-button {
-  background-color: var(--tertiary-action-color);
+  background-color: var(--primary-action-color);
+  margin-top: 1rem;
 }
 .unlock-button:hover {
-  background-color: var(--tertiary-action-hover);
+  background-color: var(--primary-action-hover);
+}
+
+.close-button {
+    background-color: var(--tertiary-action-color);
+}
+.close-button:hover {
+    background-color: var(--tertiary-action-hover);
+}
+
+.refresh-button {
+    background-color: var(--danger-action-color);
+}
+.refresh-button:hover {
+    background-color: var(--danger-action-hover);
 }

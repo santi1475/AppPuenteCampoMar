@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   testPrint: () => ipcRenderer.send("test-print"),
   checkPrinterStatus: () => ipcRenderer.send("check-printer-status"),
+  relaunchApp: () => ipcRenderer.send("relaunch-app"),
 
   onUpdateStatus: (callback) =>
     ipcRenderer.on("update-status", (event, ...args) => callback(...args)),

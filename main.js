@@ -1,32 +1,31 @@
+// main.js
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const ngrok = require('ngrok');
-const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
+const { ThermalPrinter, PrinterTypes, CharacterSet } = require('node-thermal-printer');
 const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
+
+
+const store = new Store();
 let supabase;
 
 function getSupabaseClient() {
     if (!supabase) {
-        const supabaseUrl = process.env.SUPABASE_URL;
-        const supabaseKey = process.env.SUPABASE_ANON_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-            console.error('Error crítico: Las variables de entorno SUPABASE_URL y SUPABASE_ANON_KEY no están definidas en el archivo .env.');
+        if (!SUPABASE_URL || !SUPABASE_KEY) {
+            console.error('Error crítico: Las variables de Supabase no están definidas en el código.');
             return null;
         }
-        supabase = createClient(supabaseUrl, supabaseKey);
+        supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     }
     return supabase;
 }
 
-const store = new Store();
 let mainWindow;
-let forceQuit = false; 
+let forceQuit = false;
 
 function sendToWindow(channel, ...args) {
     if (mainWindow) {
@@ -43,6 +42,8 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'),
         },
     });
+    mainWindow.maximize();
+
     mainWindow.loadFile('index.html');
     mainWindow.on('close', (event) => {
         if (!forceQuit) {
@@ -97,7 +98,6 @@ app.on('before-quit', (event) => {
     }
 });
 
-
 app.whenReady().then(() => {
     createWindow();
     startPrintServer();
@@ -105,31 +105,29 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: true });
 });
 
-// --- MANEJADORES DE IPC ---
+// --- MANEJADORES DE IPC  ---
 
 ipcMain.handle('verify-password', (event, password) => {
-    const secret = process.env.SECRET_PASSWORD || 'default_password';
-    return password === secret;
+    return password === SECRET_PASSWORD;
 });
 
 ipcMain.on('request-initial-config', (event) => {
     event.reply('load-config', {
-        printerIp: store.get('printerIp', process.env.PRINTER_IP),
-        ngrokToken: store.get('ngrokToken', process.env.NGROK_TOKEN)
+        printerIp: store.get('printerIp', DEFAULT_PRINTER_IP),
+        ngrokToken: store.get('ngrokToken', DEFAULT_NGROK_TOKEN)
     });
 });
 
 ipcMain.on('save-config', (event, config) => {
     store.set('printerIp', config.printerIp);
     store.set('ngrokToken', config.ngrokToken);
-    forceQuit = true; 
     app.relaunch();
     app.exit();
 });
 
 ipcMain.on('test-print', async () => {
     try {
-        const printerIp = store.get('printerIp');
+        const printerIp = store.get('printerIp', DEFAULT_PRINTER_IP);
         if (!printerIp) {
             throw new Error("La IP de la impresora no está configurada.");
         }
@@ -156,7 +154,7 @@ ipcMain.on('test-print', async () => {
 
 ipcMain.on('check-printer-status', async () => {
     try {
-        const printerIp = store.get('printerIp');
+        const printerIp = store.get('printerIp', DEFAULT_PRINTER_IP);
         if (!printerIp) {
             sendToWindow('update-status', { printer: 'pending', message: 'Esperando configuración de IP...' });
             return;
@@ -180,6 +178,11 @@ ipcMain.on('check-printer-status', async () => {
     }
 });
 
+ipcMain.on('relaunch-app', () => {
+    app.relaunch();
+    app.exit();
+});
+
 // --- LÓGICA DE SERVIDORES ---
 
 function startPrintServer() {
@@ -188,29 +191,103 @@ function startPrintServer() {
     localApp.use(express.json());
 
     localApp.post('/print', async (req, res) => {
-        let printer;
+        const { pedidoID, comentario } = req.body;
+
+        if (!pedidoID) {
+            return res.status(400).json({ success: false, error: "Debe proporcionar un ID de pedido" });
+        }
+
         try {
-            const { orderDetails } = req.body;
-            const printerIp = store.get('printerIp');
-            
+            const supabaseClient = getSupabaseClient();
+            if (!supabaseClient) {
+                throw new Error("Cliente de Supabase no inicializado.");
+            }
+
+            const { data: pedido, error: fetchError } = await supabaseClient
+                .from('pedidos')
+                .select(`
+                    Fecha,
+                    detallepedidos (
+                        Cantidad,
+                        platos ( Descripcion )
+                    ),
+                    pedido_mesas (
+                        mesas ( NumeroMesa )
+                    )
+                `)
+                .eq('PedidoID', pedidoID)
+                .single();
+
+            if (fetchError || !pedido) {
+                throw new Error(fetchError?.message || "Pedido no encontrado en la base de datos.");
+            }
+
+            const printerIp = store.get('printerIp', DEFAULT_PRINTER_IP);
             if (!printerIp) {
                 throw new Error("La IP de la impresora no está configurada en la aplicación.");
             }
+            
             sendToWindow('update-status', { printer: 'printing' });
 
-            printer = new ThermalPrinter({
+            const printer = new ThermalPrinter({
                 type: PrinterTypes.EPSON,
                 interface: `tcp://${printerIp}`,
+                characterSet: CharacterSet.PC850_MULTILINGUAL,
+                removeSpecialCharacters: false,
+                lineCharacter: "-",
                 timeout: 3000
             });
+
             printer.alignCenter();
-            printer.println("Nuevo Pedido:");
-            printer.println(orderDetails || "Sin detalles.");
+            printer.bold(true);
+            printer.println("PEDIDO DE COCINA");
+            printer.bold(false);
+            printer.drawLine();
+
+            printer.alignLeft();
+            printer.println(`Fecha: ${new Date(pedido.Fecha).toLocaleDateString()} - Hora: ${new Date(pedido.Fecha).toLocaleTimeString()}`);
+            
+            const mesasStr = pedido.pedido_mesas.map((pm) => pm.mesas?.NumeroMesa).join(", ");
+            printer.setTextSize(1, 1);
+            printer.bold(true);
+            printer.println(`MESA(S): ${mesasStr}`);
+            printer.setTextNormal();
+            printer.bold(false);
+            printer.drawLine();
+
+            printer.setTextNormal();
+            printer.tableCustom([
+                { text: "CANT", align: "LEFT", width: 0.15, bold: true },
+                { text: "PRODUCTO", align: "RIGHT", width: 0.80, bold: true },
+            ]);
+
+            printer.setTextSize(1, 1);
+            pedido.detallepedidos.forEach((detalle) => {
+                printer.tableCustom([
+                    { text: `${detalle.Cantidad}x`, align: "LEFT", width: 0.15 },
+                    { text: `${detalle.platos?.Descripcion}`, align: "LEFT", width: 0.85 },
+                ]);
+            });
+            
+            printer.setTextNormal();
+            printer.drawLine();
+
+            if (comentario && comentario.trim() !== "") {
+                printer.alignCenter();
+                printer.bold(true);
+                printer.println("! INSTRUCCIONES !");
+                printer.bold(false);
+                printer.println(comentario);
+                printer.drawLine();
+            }
+            
             printer.cut();
             
             await printer.execute();
+            
             sendToWindow('update-status', { printer: 'success' });
             res.status(200).json({ success: true, message: "Impreso correctamente." });
+
         } catch (error) {
             console.error("Error de impresión:", error.message);
             sendToWindow('update-status', { printer: 'error' });
@@ -235,7 +312,7 @@ function startPrintServer() {
 }
 
 async function startNgrokTunnel() {
-    const token = store.get('ngrokToken', process.env.NGROK_TOKEN); 
+    const token = store.get('ngrokToken', DEFAULT_NGROK_TOKEN);
     if (!token) {
         console.warn('El token de Ngrok no está configurado.');
         sendToWindow('set-ngrok-url', 'Error: Falta el token de Ngrok.');
@@ -251,32 +328,15 @@ async function startNgrokTunnel() {
         const supabaseClient = getSupabaseClient();
         if (!supabaseClient) return;
 
-        // 1. Actualizar URL en Supabase
-        const { error: updateError } = await supabaseClient
+        // Usamos upsert para insertar si no existe, o actualizar si ya existe.
+        const { error: upsertError } = await supabaseClient
             .from('configuracion')
-            .update({ valor: url })
-            .eq('nombre_setting', 'printer_url');
+            .upsert({ id: 1, nombre_setting: 'printer_url', valor: url });
 
-        if (updateError) {
-            console.error('Error al actualizar la URL en Supabase:', updateError.message);
+        if (upsertError) {
+            console.error('Error al actualizar la URL en Supabase:', upsertError.message);
         } else {
             console.log('URL actualizada en Supabase exitosamente.');
-        }
-        
-        // 2. Verificar el valor recién escrito
-        console.log('--- Verificando valor en Supabase ---');
-        const { data: configData, error: fetchError } = await supabaseClient
-            .from('configuracion')
-            .select('valor')
-            .eq('nombre_setting', 'printer_url')
-            .single();
-
-        if (fetchError) {
-            console.error('Error al leer la URL desde Supabase:', fetchError.message);
-        } else if (configData) {
-            console.log(`✅ Valor recuperado de Supabase: ${configData.valor}`);
-        } else {
-            console.log('No se encontró el valor en Supabase.');
         }
 
     } catch (error) {

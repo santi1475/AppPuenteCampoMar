@@ -23,7 +23,7 @@ function getSupabaseClient() {
     }
     try {
       supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-      console.log("✅ Cliente Supabase inicializado correctamente");
+      console.log("Cliente Supabase inicializado correctamente");
     } catch (error) {
       console.error("Error al inicializar cliente Supabase:", error.message);
       return null;
@@ -112,7 +112,6 @@ app.whenReady().then(() => {
   app.setLoginItemSettings({ openAtLogin: true });
 });
 
-
 ipcMain.handle("verify-password", (event, password) => {
   return password === SECRET_PASSWORD;
 });
@@ -144,7 +143,7 @@ ipcMain.on("test-print", async () => {
     });
     printer.alignCenter();
     printer.println("Pagina de Prueba");
-    printer.println("Conexion Exitosa ✅");
+    printer.println("Conexion Exitosa");
     printer.println(`Fecha: ${new Date().toLocaleString()}`);
     printer.cut();
     await printer.execute();
@@ -175,7 +174,7 @@ ipcMain.on("check-printer-status", async () => {
     if (isConnected) {
       sendToWindow("update-status", {
         printer: "success",
-        message: "Conectada y en espera ✅",
+        message: "Conectada y en espera",
       });
     } else {
       throw new Error("La impresora no respondió a la conexión.");
@@ -184,7 +183,7 @@ ipcMain.on("check-printer-status", async () => {
     console.error("Error de conexión con la impresora:", error.message);
     sendToWindow("update-status", {
       printer: "error",
-      message: "Error de conexión ❌",
+      message: "Error de conexión",
     });
   }
 });
@@ -195,10 +194,10 @@ ipcMain.on("relaunch-app", () => {
 });
 
 ipcMain.handle("get-latest-orders", async () => {
-  console.log("🔍 Buscando comandas recientes...");
+  console.log("Buscando comandas recientes a petición del usuario...");
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
-    console.error("❌ No se pudo obtener el cliente Supabase");
+    console.error("No se pudo obtener el cliente Supabase");
     return [];
   }
 
@@ -208,8 +207,10 @@ ipcMain.handle("get-latest-orders", async () => {
       .select(`
         ComandaID,
         FechaCreacion,
-        pedido:pedidos (
+        Comentario,
+        pedido:pedidos!comandas_cocina_PedidoID_fkey (
           PedidoID,
+          Fecha,
           pedido_mesas (
             mesas (
               NumeroMesa
@@ -228,29 +229,34 @@ ipcMain.handle("get-latest-orders", async () => {
       .limit(3);
 
     if (error) {
-      console.error('❌ Error al obtener comandas recientes:', error.message);
+      console.error('Error al obtener comandas recientes:', error.message);
       return [];
     }
-    
+
     const result = (data || []).map(comanda => {
       let mesa = 'N/A';
-      if (comanda.pedido && comanda.pedido.pedido_mesas && comanda.pedido.pedido_mesas.length > 0) {
-        mesa = comanda.pedido.pedido_mesas.map(pm => pm.mesas?.NumeroMesa).filter(Boolean).join(', ');
+      if (comanda.pedido?.pedido_mesas && Array.isArray(comanda.pedido.pedido_mesas)) {
+        const mesas = comanda.pedido.pedido_mesas
+          .map(pm => pm.mesas?.NumeroMesa)
+          .filter(num => num !== null && num !== undefined);
+        mesa = mesas.length > 0 ? mesas.join(', ') : 'N/A';
       }
       
       let items = [];
-      if (comanda.pedido && comanda.pedido.detallepedidos) {
-        items = comanda.pedido.detallepedidos.map(det => ({
-          cantidad: det.Cantidad,
-          descripcion: det.platos?.Descripcion || 'Sin nombre'
+      if (comanda.pedido?.detallepedidos && Array.isArray(comanda.pedido.detallepedidos)) {
+        items = comanda.pedido.detallepedidos.map(detalle => ({
+          cantidad: detalle.Cantidad || 0,
+          descripcion: detalle.platos?.Descripcion || 'Sin nombre'
         }));
       }
 
       return {
         id: comanda.ComandaID,
-        mesa,
+        mesa: mesa,
         timestamp: comanda.FechaCreacion,
-        items
+        comentario: comanda.Comentario || '',
+        fechaPedido: comanda.pedido?.Fecha || null,
+        items: items
       };
     });
     
@@ -263,7 +269,7 @@ ipcMain.handle("get-latest-orders", async () => {
 });
 
 ipcMain.handle("reprint-command", async (event, commandId) => {
-  console.log(`🔄 Reimprimiendo comanda #${commandId}...`);
+  console.log(`Reimprimiendo comanda #${commandId}...`);
   const supabaseClient = getSupabaseClient();
   if (!supabaseClient) {
     throw new Error("No se pudo obtener el cliente Supabase");
@@ -275,11 +281,11 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       .select(`
         ComandaID,
         Comentario,
+        FechaCreacion,
         pedido:pedidos!comandas_cocina_PedidoID_fkey (
           PedidoID,
           Fecha,
           detallepedidos!detallepedidos_PedidoID_fkey (
-            DetalleID,
             Cantidad,
             platos!detallepedidos_PlatoID_fkey (
               Descripcion
@@ -317,63 +323,78 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
     printer.bold(true);
     printer.println("REIMPRESIÓN DE COMANDA");
     printer.bold(false);
+    printer.println(`Comanda #${comanda.ComandaID}`);
     printer.drawLine();
 
     if (comanda.pedido) {
       printer.alignLeft();
-      printer.println(
-        `Fecha Original: ${new Date(comanda.pedido.Fecha).toLocaleDateString()} ${new Date(
-          comanda.pedido.Fecha
-        ).toLocaleTimeString()}`
-      );
-      printer.println(`Fecha Reimpresión: ${new Date().toLocaleString()}`);
+      
+      const fechaOriginal = new Date(comanda.pedido.Fecha);
+      const fechaReimpresion = new Date();
+      printer.println(`Fecha Original: ${fechaOriginal.toLocaleDateString()} ${fechaOriginal.toLocaleTimeString()}`);
+      printer.println(`Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`);
+      printer.newLine();
 
-      const mesasStr = comanda.pedido.pedido_mesas
-        ?.map((pm) => pm.mesas?.NumeroMesa)
-        .join(", ");
+      let mesasTexto = 'N/A';
+      if (comanda.pedido.pedido_mesas && Array.isArray(comanda.pedido.pedido_mesas)) {
+        const numerosMesa = comanda.pedido.pedido_mesas
+          .map(pm => pm.mesas?.NumeroMesa)
+          .filter(num => num !== null && num !== undefined);
+        mesasTexto = numerosMesa.length > 0 ? numerosMesa.join(', ') : 'N/A';
+      }
+      
       printer.setTextSize(1, 1);
       printer.bold(true);
-      printer.println(`MESA(S): ${mesasStr}`);
+      printer.println(`MESA(S): ${mesasTexto}`);
       printer.setTextNormal();
       printer.bold(false);
       printer.drawLine();
 
-      printer.tableCustom([
-        { text: "CANT", align: "LEFT", width: 0.15, bold: true },
-        { text: "PRODUCTO", align: "RIGHT", width: 0.8, bold: true },
-      ]);
+      if (comanda.pedido.detallepedidos && Array.isArray(comanda.pedido.detallepedidos)) {
+        printer.setTextSize(1, 2);
+        printer.bold(true);
+        printer.alignCenter();
+        printer.println("PRODUCTOS");
+        printer.drawLine();
+        printer.bold(false);
 
-      printer.setTextSize(1, 1);
-      comanda.pedido.detallepedidos?.forEach((detalle) => {
-        printer.tableCustom([
-          { text: `${detalle.Cantidad}x`, align: "LEFT", width: 0.15 },
-          {
-            text: `${detalle.platos?.Descripcion}`,
-            align: "LEFT",
-            width: 0.85,
-          },
-        ]);
-      });
+        comanda.pedido.detallepedidos.forEach((detalle) => {
+          const descripcion = detalle.platos?.Descripcion || 'Producto no encontrado';
+          const cantidad = detalle.Cantidad || 0;
+          
+          printer.alignLeft();
+          printer.bold(true);
+          printer.println(`${cantidad}x ${descripcion}`);
+          printer.bold(false);
+        });
+
+      } else {
+        printer.println("No se encontraron productos en este pedido");
+      }
+    } else {
+      printer.println("No se encontró información del pedido");
     }
 
-    printer.setTextNormal();
-    printer.drawLine();
-    
     if (comanda.Comentario && comanda.Comentario.trim() !== "") {
+      printer.drawLine();
       printer.alignCenter();
       printer.bold(true);
       printer.println("! INSTRUCCIONES !");
       printer.bold(false);
+      printer.alignLeft();
       printer.println(comanda.Comentario);
-      printer.drawLine();
     }
 
+    printer.drawLine();
+    printer.alignCenter();
+    printer.println("REIMPRESIÓN");
     printer.cut();
+    
     await printer.execute();
 
     sendToWindow("update-status", {
       printer: "success",
-      message: `Comanda #${commandId} reimpresa ✅`
+      message: `Comanda #${commandId} reimpresa `
     });
 
     return { success: true };
@@ -381,7 +402,7 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
     console.error(`Error al reimprimir comanda #${commandId}:`, error.message);
     sendToWindow("update-status", {
       printer: "error",
-      message: `Error al reimprimir comanda #${commandId}`
+      message: `Error al reimprimir: ${error.message}`
     });
     throw error;
   }
@@ -394,61 +415,54 @@ async function checkForPrintJobs() {
     return;
   }
 
-  console.log("🔍 Buscando comandas pendientes...");
-  const { data: comandas, error: comandasError } = await supabaseClient
-    .from('comandas_cocina')
-    .select(`
-      ComandaID,
-      PedidoID,
-      Comentario,
-      EstadoImpresion,
-      pedido:pedidos!comandas_cocina_PedidoID_fkey (
-        PedidoID,
-        Fecha,
-        Total,
-        detallepedidos!detallepedidos_PedidoID_fkey (
-          DetalleID,
-          Cantidad,
-          platos!detallepedidos_PlatoID_fkey (
-            PlatoID,
-            Descripcion,
-            Precio
-          )
-        ),
-        pedido_mesas!pedido_mesas_PedidoID_fkey (
-          PedidoMesaID,
-          mesas!pedido_mesas_MesaID_fkey (
-            MesaID,
-            NumeroMesa
+  try {
+    const { data: comandas, error: comandasError } = await supabaseClient
+      .from('comandas_cocina')
+      .select(`
+        ComandaID,
+        Comentario,
+        FechaCreacion,
+        pedido:pedidos!comandas_cocina_PedidoID_fkey (
+          PedidoID,
+          Fecha,
+          detallepedidos!detallepedidos_PedidoID_fkey (
+            Cantidad,
+            platos!detallepedidos_PlatoID_fkey (
+              Descripcion
+            )
+          ),
+          pedido_mesas!pedido_mesas_PedidoID_fkey (
+            mesas!pedido_mesas_MesaID_fkey (
+              NumeroMesa
+            )
           )
         )
-      )
-    `)
-    .eq('EstadoImpresion', 'pendiente');
+      `)
+      .eq('EstadoImpresion', 'pendiente');
 
+    if (comandasError) {
+      console.error("Error al buscar comandas pendientes:", comandasError.message);
+      sendToWindow("update-status", { printer: "error", message: "Error al consultar comandas" });
+      return;
+    }
 
-  if (comandasError) {
-    console.error("Error al buscar comandas pendientes:", comandasError.message);
-    console.error("Detalles del error:", comandasError);
-    sendToWindow("update-status", { printer: "error", message: "Error al consultar comandas" });
-    return;
-  }
-
-  console.log(`✅ Se encontraron ${comandas?.length || 0} comandas pendientes`);
-  if (comandas?.length > 0) {
-    console.log('Primera comanda encontrada:', JSON.stringify(comandas[0], null, 2));
-  }
-
-  if (comandas && comandas.length > 0) {
-    console.log(`✅ ${comandas.length} comanda(s) encontrada(s) para imprimir.`);
+    if (!comandas || comandas.length === 0) {
+      return;
+    }
+    
+    console.log(`Encontradas ${comandas.length} comanda(s) pendientes. Procesando...`);
     sendToWindow("update-status", {
       printer: "printing",
       message: `Imprimiendo ${comandas.length} comanda(s)...`
     });
 
+    const printerIp = store.get("printerIp", DEFAULT_PRINTER_IP);
+    if (!printerIp) {
+      throw new Error("La IP de la impresora no está configurada");
+    }
+
     for (const comanda of comandas) {
       try {
-        const printerIp = store.get("printerIp", DEFAULT_PRINTER_IP);
         const printer = new ThermalPrinter({
           type: PrinterTypes.EPSON,
           interface: `tcp://${printerIp}`,
@@ -462,60 +476,72 @@ async function checkForPrintJobs() {
         printer.bold(true);
         printer.println("COMANDA DE COCINA");
         printer.bold(false);
+        printer.println(`Comanda #${comanda.ComandaID}`);
         printer.drawLine();
 
         if (comanda.pedido) {
           printer.alignLeft();
-          printer.println(
-            `Fecha: ${new Date(comanda.pedido.Fecha).toLocaleDateString()} - Hora: ${new Date(
-              comanda.pedido.Fecha
-            ).toLocaleTimeString()}`
-          );
+          
+          const fechaPedido = new Date(comanda.pedido.Fecha);
+          printer.println(`Fecha: ${fechaPedido.toLocaleDateString()} - Hora: ${fechaPedido.toLocaleTimeString()}`);
+          printer.newLine();
 
-          const mesasStr = comanda.pedido.pedido_mesas
-            ?.map((pm) => pm.mesas?.NumeroMesa)
-            .join(", ");
+          let mesasTexto = 'N/A';
+          if (comanda.pedido.pedido_mesas && Array.isArray(comanda.pedido.pedido_mesas)) {
+            const numerosMesa = comanda.pedido.pedido_mesas
+              .map(pm => pm.mesas?.NumeroMesa)
+              .filter(num => num !== null && num !== undefined);
+            mesasTexto = numerosMesa.length > 0 ? numerosMesa.join(', ') : 'N/A';
+          }
+          
           printer.setTextSize(1, 1);
           printer.bold(true);
-          printer.println(`MESA(S): ${mesasStr}`);
+          printer.println(`MESA(S): ${mesasTexto}`);
           printer.setTextNormal();
           printer.bold(false);
           printer.drawLine();
 
-          printer.tableCustom([
-            { text: "CANT", align: "LEFT", width: 0.15, bold: true },
-            { text: "PRODUCTO", align: "RIGHT", width: 0.8, bold: true },
-          ]);
+          if (comanda.pedido.detallepedidos && Array.isArray(comanda.pedido.detallepedidos)) {
+            printer.setTextSize(1, 2);
+            printer.bold(true);
+            printer.alignCenter();
+            printer.println("PRODUCTOS");
+            printer.drawLine();
+            printer.bold(false);
 
-          printer.setTextSize(1, 1);
-          comanda.pedido.detallepedidos?.forEach((detalle) => {
-            printer.tableCustom([
-              { text: `${detalle.Cantidad}x`, align: "LEFT", width: 0.15 },
-              {
-                text: `${detalle.platos?.Descripcion}`,
-                align: "LEFT",
-                width: 0.85,
-              },
-            ]);
-          });
+            comanda.pedido.detallepedidos.forEach((detalle) => {
+              const descripcion = detalle.platos?.Descripcion || 'Producto no encontrado';
+              const cantidad = detalle.Cantidad || 0;
+              
+              printer.alignLeft();
+              printer.bold(true);
+              printer.println(`${cantidad}x ${descripcion}`);
+              printer.bold(false);
+            });
+
+          } else {
+            printer.println("No se encontraron productos en este pedido");
+          }
+        } else {
+          printer.println("No se encontró información del pedido");
         }
 
-        printer.setTextNormal();
-        printer.drawLine();
-        
         if (comanda.Comentario && comanda.Comentario.trim() !== "") {
+          printer.drawLine();
           printer.alignCenter();
           printer.bold(true);
           printer.println("! INSTRUCCIONES !");
           printer.bold(false);
+          printer.alignLeft();
           printer.println(comanda.Comentario);
-          printer.drawLine();
         }
 
+        printer.drawLine();
+        printer.alignCenter();
+        printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
         printer.cut();
 
         await printer.execute();
-        console.log(`Comanda #${comanda.ComandaID} impresa.`);
 
         const { error: updateError } = await supabaseClient
           .from("comandas_cocina")
@@ -523,28 +549,30 @@ async function checkForPrintJobs() {
           .eq("ComandaID", comanda.ComandaID);
 
         if (updateError) {
-          console.error(
-            `Error al actualizar el estado de la comanda #${comanda.ComandaID}:`,
-            updateError.message
-          );
+          console.error(`Error al actualizar estado de comanda #${comanda.ComandaID}:`, updateError.message);
         } else {
-          console.log(`Comanda #${comanda.ComandaID} marcada como impresa.`);
+          console.log(`Comanda #${comanda.ComandaID} impresa y marcada como 'impreso'.`);
         }
+
       } catch (printError) {
-        console.error(
-          `Error al imprimir la comanda #${comanda.ComandaID}:`,
-          printError.message
-        );
+        console.error(`Error al imprimir comanda #${comanda.ComandaID}:`, printError.message);
         sendToWindow("update-status", {
           printer: "error",
-          message: `Error imprimiendo comanda #${comanda.ComandaID}`,
+          message: `Error imprimiendo comanda #${comanda.ComandaID}: ${printError.message}`,
         });
       }
     }
 
     sendToWindow("update-status", {
       printer: "success",
-      message: "Comandas impresas. En espera... ✅",
+      message: "Comandas impresas. En espera... ",
+    });
+
+  } catch (error) {
+    console.error("Error general en checkForPrintJobs:", error.message);
+    sendToWindow("update-status", {
+      printer: "error",
+      message: `Error general: ${error.message}`,
     });
   }
 }

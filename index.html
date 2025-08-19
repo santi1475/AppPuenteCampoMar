@@ -18,25 +18,25 @@
             </div>
         </div>
 
-        <div class="card">
-            <h2><span style="font-size: 1.5rem;">🌐</span> Conexión</h2>
-            <p>URL Pública (para tu app web):</p>
-            <div id="ngrok-url">Cargando...</div>
-        </div>
-
         <div id="config-section" class="card" style="display: none;">
             <h2><span style="font-size: 1.5rem;">🔧</span> Configuración</h2>
             <div>
                 <label for="printer-ip">Dirección IP de la Impresora:</label>
                 <input type="text" id="printer-ip" class="config-input" placeholder="Ej: 192.168.1.100">
             </div>
-            <div style="margin-top: 1rem;">
-                <label for="ngrok-token">Token de Ngrok:</label>
-                <input type="text" id="ngrok-token" class="config-input" placeholder="Pega tu token de autenticación de Ngrok aquí">
-            </div>
             <div class="button-group">
                 <button id="save-button" class="action-button save-button">💾 Guardar y Reiniciar</button>
                 <button id="close-settings-button" class="action-button close-button">❌ Cerrar</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2><span style="font-size: 1.5rem;">📝</span> Últimas Comandas</h2>
+            <div id="latest-orders" class="orders-list">
+                <p class="loading-message">Cargando comandas...</p>
+            </div>
+            <div class="button-group">
+                <button id="refresh-orders" class="action-button refresh-button">🔄 Actualizar Comandas</button>
             </div>
         </div>
         
@@ -50,6 +50,7 @@
                 <button id="unlock-button" class="action-button unlock-button">Desbloquear 🔓</button>
             </div>
         </div>
+
     </div>
     <script src="./renderer.js"></script>
 </body>

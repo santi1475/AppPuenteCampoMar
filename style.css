@@ -42,12 +42,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.container {
-  width: 100%;
-  max-width: 480px;
-}
-
-/* Tipografía */
 h1 {
   font-size: 2.2rem;
   font-weight: 700;
@@ -76,6 +70,12 @@ label {
 }
 
 /* Componentes de la UI */
+
+.container {
+  width: 100%;
+  max-width: 480px;
+}
+
 .card {
   background: var(--card-bg-color);
   padding: 1.5rem;
@@ -202,4 +202,68 @@ label {
 }
 .refresh-button:hover {
     background-color: var(--danger-action-hover);
+}
+
+/* Estilos para la lista de comandas */
+.orders-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 1rem 0;
+    padding: 0.5rem;
+    background: var(--input-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.loading-message {
+    text-align: center;
+    color: var(--secondary-text-color);
+    padding: 1rem;
+}
+
+.order-item {
+    background: var(--card-bg-color);
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s;
+}
+
+.order-item:hover {
+    transform: translateX(5px);
+}
+
+.order-item .order-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.order-item .order-time {
+    color: var(--secondary-text-color);
+    font-size: 0.9em;
+}
+
+.order-item .order-details {
+    color: var(--secondary-text-color);
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+.order-actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.reprint-button {
+    background-color: var(--secondary-action-color);
+    padding: 8px 16px;
+    font-size: 0.9rem;
+}
+
+.reprint-button:hover {
+    background-color: var(--secondary-action-hover);
 }

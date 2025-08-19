@@ -12,8 +12,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   onUpdateStatus: (callback) =>
     ipcRenderer.on("update-status", (event, ...args) => callback(...args)),
-  onSetNgrokUrl: (callback) =>
-    ipcRenderer.on("set-ngrok-url", (event, ...args) => callback(...args)),
 
   verifyPassword: (password) => ipcRenderer.invoke("verify-password", password),
+  getLatestOrders: () => ipcRenderer.invoke("get-latest-orders"),
+  reprintCommand: (commandId) => ipcRenderer.invoke("reprint-command", commandId),
 });

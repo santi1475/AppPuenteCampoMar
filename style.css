@@ -71,11 +71,6 @@ label {
 
 /* Componentes de la UI */
 
-.container {
-  width: 100%;
-  max-width: 480px;
-}
-
 .card {
   background: var(--card-bg-color);
   padding: 1.5rem;
@@ -204,7 +199,6 @@ label {
     background-color: var(--danger-action-hover);
 }
 
-/* Estilos para la lista de comandas */
 .orders-list {
     max-height: 300px;
     overflow-y: auto;
@@ -266,4 +260,49 @@ label {
 
 .reprint-button:hover {
     background-color: var(--secondary-action-hover);
+}
+
+.container {
+  max-width: 1200px;
+}
+
+.main-content {
+  display: flex;
+  gap: 1.5rem; 
+  align-items: flex-start;
+}
+
+.column-left {
+  flex: 1; 
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; 
+}
+
+.column-right {
+  flex: 2;
+}
+
+#test-print-button {
+    background-color: var(--secondary-action-color);
+}
+#test-print-button:hover {
+    background-color: var(--secondary-action-hover);
+}
+
+.order-actions .reprint-button {
+    flex-grow: 1;
+    gap: 0.5rem; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.order-item .order-header {
+    font-size: 0.95em;
+}
+
+.order-item .order-details {
+    font-size: 0.9em;
+    margin: 0.75rem 0;
 }

@@ -1,4 +1,3 @@
-const serverStatusEl = document.getElementById('server-status');
 const printerStatusEl = document.getElementById('printer-status');
 
 const configSection = document.getElementById('config-section');
@@ -50,10 +49,6 @@ refreshButton.addEventListener('click', () => {
 window.electronAPI.requestInitialConfig();
 
 window.electronAPI.onUpdateStatus((status) => {
-    if (status.server) {
-        serverStatusEl.textContent = 'Corriendo ✅';
-        serverStatusEl.className = 'status running';
-    }
     if (status.printer) {
         const messages = {
             'printing': { text: 'Imprimiendo... ⏳', class: 'pending' },
@@ -95,7 +90,6 @@ async function updateOrders() {
                 </div>
             `).join('');
 
-            // Agregar la función de reimpresión al contexto global
             window.handleReprint = async (commandId) => {
                 try {
                     await window.electronAPI.reprintCommand(commandId);
@@ -111,14 +105,11 @@ async function updateOrders() {
     }
 }
 
-// Event listener para el botón de actualizar comandas
 refreshOrdersButton.addEventListener('click', updateOrders);
 
-// Actualizamos las comandas al inicio y cada 30 segundos
 updateOrders();
 setInterval(updateOrders, 30000);
 
-// Verificación del estado de la impresora
 setInterval(() => {
     console.log("Verificando estado de la impresora...");
     window.electronAPI.checkPrinterStatus();

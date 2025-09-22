@@ -11,7 +11,19 @@ const { createClient } = require("@supabase/supabase-js");
 const store = new Store();
 let supabase;
 
+let envPath;
+if (app.isPackaged) {
+  envPath = path.join(process.resourcesPath, ".env");
+} else {
+  envPath = path.join(__dirname, ".env");
+}
 
+require("dotenv").config({ path: envPath });
+
+const DEFAULT_PRINTER_IP = "192.168.100.63";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const SECRET_PASSWORD = process.env.SECRET_PASSWORD;
 
 function getSupabaseClient() {
   if (!supabase) {

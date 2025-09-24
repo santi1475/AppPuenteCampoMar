@@ -7,7 +7,6 @@ const {
 } = require("node-thermal-printer");
 const Store = require("electron-store");
 const { createClient } = require("@supabase/supabase-js");
-
 const store = new Store();
 let supabase;
 
@@ -50,6 +49,410 @@ let forceQuit = false;
 function sendToWindow(channel, ...args) {
   if (mainWindow) {
     mainWindow.webContents.send(channel, ...args);
+  }
+}
+
+function orderPlatosWithCaldosFirst(detalles) {
+  if (!detalles || !Array.isArray(detalles)) {
+    return detalles;
+  }
+
+  const CATEGORIA_CALDO_ID = 4;
+
+  const caldos = detalles.filter((detalle) => {
+    return detalle.platos?.CategoriaID === CATEGORIA_CALDO_ID;
+  });
+
+  const otros = detalles.filter((detalle) => {
+    return detalle.platos?.CategoriaID !== CATEGORIA_CALDO_ID;
+  });
+
+  // Log para debugging del ordenamiento
+  console.log("🔄 Ordenamiento de platos:");
+  console.log(`   Platos categoría 4 (primero): ${caldos.length}`);
+  caldos.forEach(plato => {
+    console.log(`     - ${plato.Cantidad || 1}x ${plato.platos?.Descripcion} (Cat: ${plato.platos?.CategoriaID})`);
+  });
+  console.log(`   Otros platos: ${otros.length}`);
+  otros.forEach(plato => {
+    console.log(`     - ${plato.Cantidad || 1}x ${plato.platos?.Descripcion} (Cat: ${plato.platos?.CategoriaID})`);
+  });
+
+  return [...caldos, ...otros];
+}
+
+// Función auxiliar para obtener categorías de platos desde la base de datos
+async function obtenerCategoriasPlatos(descripcionesPlatos) {
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient || !descripcionesPlatos || descripcionesPlatos.length === 0) {
+    return {};
+  }
+
+  try {
+    // Consultar platos que coincidan con las descripciones
+    const { data: platos, error } = await supabaseClient
+      .from('platos')
+      .select('Descripcion, CategoriaID')
+      .in('Descripcion', descripcionesPlatos);
+
+    if (error) {
+      console.error('Error al consultar categorías de platos:', error);
+      return {};
+    }
+
+    // Crear un mapa descripción -> CategoriaID
+    const categoriasMap = {};
+    platos?.forEach(plato => {
+      categoriasMap[plato.Descripcion] = plato.CategoriaID;
+    });
+
+    console.log("📋 Categorías obtenidas de la base de datos:");
+    Object.entries(categoriasMap).forEach(([descripcion, categoria]) => {
+      console.log(`   ${descripcion} → Categoría ${categoria}`);
+    });
+
+    return categoriasMap;
+  } catch (error) {
+    console.error('Error en obtenerCategoriasPlatos:', error);
+    return {};
+  }
+}
+
+// Función para imprimir comanda normal (pedido completo)
+async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
+  // Cabecera común solo si no se debe omitir
+  if (!omitirCabecera) {
+    imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+  }
+
+  if (
+    comanda.pedido &&
+    comanda.pedido.detallepedidos &&
+    Array.isArray(comanda.pedido.detallepedidos)
+  ) {
+    // Título PRODUCTOS
+    printer.setTextSize(1, 2);
+    printer.bold(true);
+    printer.alignCenter();
+    printer.println("PRODUCTOS");
+    printer.drawLine();
+    printer.bold(false);
+
+    // Log para verificar las categorías recibidas
+    console.log("📊 Verificando categorías en imprimirComandaNormal:");
+    comanda.pedido.detallepedidos.forEach(detalle => {
+      console.log(`   ${detalle.Cantidad}x ${detalle.platos?.Descripcion} → Cat: ${detalle.platos?.CategoriaID}`);
+    });
+
+    // Ordenar platos poniendo caldos primero
+    const detallesOrdenados = orderPlatosWithCaldosFirst(
+      comanda.pedido.detallepedidos
+    );
+
+    // Imprimir platos en formato de columnas
+    printer.setTextSize(1, 2);
+    printer.alignLeft();
+    printer.bold(true);
+
+    detallesOrdenados.forEach((detalle) => {
+      const descripcion =
+        detalle.platos?.Descripcion || "Producto no encontrado";
+      const cantidad = detalle.Cantidad || 0;
+
+      // Formato de columnas: cantidad justificada a la izquierda, descripción después
+      const cantidadStr = `${cantidad}x`.padEnd(4); // 4 espacios para la cantidad
+      printer.println(`${cantidadStr}${descripcion}`);
+    });
+
+    printer.bold(false);
+    printer.setTextNormal();
+  }
+
+  // Instrucciones - mostrar solo el comentario del usuario (sin marcadores técnicos)
+  let comentarioAMostrar = comanda.Comentario || "";
+
+  // Si tiene marcadores técnicos, extraer solo el comentario del usuario
+  if (
+    comanda.Comentario &&
+    (comanda.Comentario.includes("REIMPRESIÓN - Solo:") ||
+      comanda.Comentario.includes("NUEVOS PLATOS - Solo:"))
+  ) {
+    comentarioAMostrar = extraerComentarioUsuario(comanda.Comentario);
+  }
+
+  if (comentarioAMostrar && comentarioAMostrar.trim() !== "") {
+    printer.drawLine();
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("! INSTRUCCIONES !");
+    printer.bold(false);
+    printer.alignLeft();
+    printer.println(comentarioAMostrar);
+  }
+
+  // Footer
+  printer.drawLine();
+  printer.alignCenter();
+  printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
+}
+
+async function imprimirReimpresionEspecifica(
+  printer,
+  comanda,
+  omitirCabecera = false
+) {
+  if (!omitirCabecera) {
+    imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+  }
+
+  const regex = /REIMPRESIÓN - Solo: ([^|]+)/;
+  const match = comanda.Comentario.match(regex);
+
+  if (match && match[1]) {
+    const platosEspecificos = match[1].trim();
+
+    // Título PRODUCTOS
+    printer.setTextSize(1, 2);
+    printer.bold(true);
+    printer.alignCenter();
+    printer.println("PRODUCTOS");
+    printer.drawLine();
+    printer.bold(false);
+
+    // Imprimir los platos específicos en formato de columnas
+    printer.alignLeft();
+    printer.bold(true);
+
+    // Parsear el texto de platos específicos para formato de columnas y ordenamiento
+    const platosArray = platosEspecificos
+      .split(",")
+      .map((plato) => plato.trim());
+    const platosParseados = [];
+    const descripcionesPlatos = [];
+
+    platosArray.forEach((plato) => {
+      // Buscar patrón "cantidad x descripción"
+      const match = plato.match(/^(\d+)x\s*(.+)$/);
+      if (match) {
+        const cantidad = parseInt(match[1]);
+        const descripcion = match[2].trim();
+        
+        descripcionesPlatos.push(descripcion);
+        platosParseados.push({
+          Cantidad: cantidad,
+          platos: {
+            Descripcion: descripcion,
+            CategoriaID: 1, // Valor por defecto, se actualizará con datos reales
+          },
+          textoOriginal: plato,
+        });
+      } else {
+        // Si no coincide con el patrón, mantener tal como viene
+        platosParseados.push({
+          Cantidad: 1,
+          platos: {
+            Descripcion: plato,
+            CategoriaID: 1,
+          },
+          textoOriginal: plato,
+        });
+      }
+    });
+
+    // Obtener categorías reales desde la base de datos
+    const categoriasMap = await obtenerCategoriasPlatos(descripcionesPlatos);
+    
+    // Actualizar los CategoriaID con datos reales
+    platosParseados.forEach(plato => {
+      const categoriaReal = categoriasMap[plato.platos.Descripcion];
+      if (categoriaReal !== undefined) {
+        plato.platos.CategoriaID = categoriaReal;
+      }
+    });
+
+    // Ordenar platos poniendo caldos (CategoriaID = 4) primero
+    const platosOrdenados = orderPlatosWithCaldosFirst(platosParseados);
+
+    // Imprimir los platos ordenados
+    platosOrdenados.forEach((detalle) => {
+      if (
+        detalle.textoOriginal &&
+        !detalle.textoOriginal.match(/^(\d+)x\s*(.+)$/)
+      ) {
+        // Si es texto original sin patrón, imprimir tal como viene
+        printer.println(detalle.textoOriginal);
+      } else {
+        // Aplicar formato de columnas
+        const cantidad = detalle.Cantidad;
+        const descripcion = detalle.platos?.Descripcion || "";
+        const cantidadStr = `${cantidad}x`.padEnd(4); // 4 espacios para la cantidad
+        printer.println(`${cantidadStr}${descripcion}`);
+      }
+    });
+
+    printer.bold(false);
+  }
+
+  printer.setTextNormal();
+
+  // Instrucciones - solo mostrar el comentario del usuario (no la info técnica)
+  const comentarioUsuario = extraerComentarioUsuario(comanda.Comentario);
+  // Versión de respaldo: si no se extrae comentario pero hay "|", mostrar todo después de "|"
+  let comentarioAMostrar = comentarioUsuario;
+  if (
+    !comentarioAMostrar &&
+    comanda.Comentario &&
+    comanda.Comentario.includes("|")
+  ) {
+    const partes = comanda.Comentario.split("|");
+    if (partes.length > 1) {
+      comentarioAMostrar = partes[1].trim();
+    }
+  }
+
+  if (comentarioAMostrar && comentarioAMostrar.trim() !== "") {
+    printer.drawLine();
+    printer.setTextSize(1, 2);
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("! INSTRUCCIONES !");
+    printer.bold(false);
+    printer.alignLeft();
+    printer.println(comentarioAMostrar);
+  }
+
+  // Footer
+  printer.drawLine();
+  printer.alignCenter();
+  printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
+}
+
+// Función para imprimir nuevos platos (platos agregados recientemente)
+async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
+  // Cabecera común solo si no se debe omitir
+  if (!omitirCabecera) {
+    imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+  }
+
+  const regex = /NUEVOS PLATOS - Solo: ([^|]+)/;
+  const match = comanda.Comentario.match(regex);
+
+  if (match && match[1]) {
+    const platosNuevos = match[1].trim();
+
+    // División delgada y subtítulo "Reimpresión"
+    printer.drawLine();
+    printer.setTextSize(1, 2);
+    printer.bold(true);
+    printer.alignCenter();
+    printer.println("Reimpresion");
+    printer.bold(false);
+    printer.setTextNormal();
+
+    // Parsear platos nuevos
+    const platosPattern = /(\d+)x\s+([^,]+)/g;
+    const platosParseados = [];
+    const descripcionesPlatos = [];
+    let match2;
+
+    while ((match2 = platosPattern.exec(platosNuevos)) !== null) {
+      const cantidad = parseInt(match2[1]);
+      const descripcion = match2[2].trim();
+      
+      descripcionesPlatos.push(descripcion);
+      platosParseados.push({
+        Cantidad: cantidad,
+        platos: {
+          Descripcion: descripcion,
+          CategoriaID: 1, // Valor por defecto, se actualizará con datos reales
+        },
+      });
+    }
+
+    // Obtener categorías reales desde la base de datos
+    const categoriasMap = await obtenerCategoriasPlatos(descripcionesPlatos);
+    
+    // Actualizar los CategoriaID con datos reales
+    platosParseados.forEach(plato => {
+      const categoriaReal = categoriasMap[plato.platos.Descripcion];
+      if (categoriaReal !== undefined) {
+        plato.platos.CategoriaID = categoriaReal;
+      }
+    });
+
+    // Ordenar platos poniendo caldos (CategoriaID = 4) primero
+    const platosOrdenados = orderPlatosWithCaldosFirst(platosParseados);
+
+    // Imprimir solo los platos nuevos en formato de columnas
+    printer.setTextSize(1, 2);
+    printer.alignLeft();
+    printer.bold(true);
+
+    platosOrdenados.forEach((detalle) => {
+      const descripcion =
+        detalle.platos?.Descripcion || "Producto no encontrado";
+      const cantidad = detalle.Cantidad || 0;
+
+      // Formato de columnas: cantidad justificada a la izquierda, descripción después
+      const cantidadStr = `${cantidad}x`.padEnd(4); // 4 espacios para la cantidad
+      printer.println(`${cantidadStr}${descripcion}`);
+    });
+
+    printer.bold(false);
+    printer.setTextNormal();
+  }
+
+  printer.drawLine();
+  printer.alignCenter();
+  printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
+}
+
+// Función auxiliar para extraer solo el comentario del usuario
+function extraerComentarioUsuario(comentarioCompleto) {
+  if (!comentarioCompleto) return "";
+
+  // Buscar si hay un comentario después del "|"
+  const match = comentarioCompleto.match(/\|\s*(.+)$/);
+  const resultado = match ? match[1].trim() : "";
+
+  return resultado;
+}
+
+// Función auxiliar para imprimir cabecera común
+function imprimirCabeceraComanda(printer, comanda, titulo) {
+  printer.alignCenter();
+  printer.bold(true);
+  printer.println(titulo);
+  printer.bold(false);
+  printer.println(`Comanda #${comanda.ComandaID}`);
+  printer.drawLine();
+
+  if (comanda.pedido) {
+    printer.alignLeft();
+
+    const fechaPedido = new Date(comanda.pedido.Fecha);
+    printer.println(
+      `Fecha: ${fechaPedido.toLocaleDateString()} - Hora: ${fechaPedido.toLocaleTimeString()}`
+    );
+    printer.newLine();
+
+    let mesasTexto = "N/A";
+    if (
+      comanda.pedido.pedido_mesas &&
+      Array.isArray(comanda.pedido.pedido_mesas)
+    ) {
+      const numerosMesa = comanda.pedido.pedido_mesas
+        .map((pm) => pm.mesas?.NumeroMesa)
+        .filter((num) => num !== null && num !== undefined);
+      mesasTexto = numerosMesa.length > 0 ? numerosMesa.join(", ") : "N/A";
+    }
+
+    printer.setTextSize(1, 1);
+    printer.bold(true);
+    printer.println(`MESA(S): ${mesasTexto}`);
+    printer.setTextNormal();
+    printer.bold(false);
+    printer.drawLine();
   }
 }
 
@@ -119,7 +522,9 @@ app.on("before-quit", (event) => {
 
 app.whenReady().then(() => {
   createWindow();
-  console.log("Iniciando sondeo de base de datos para trabajos de impresión...");
+  console.log(
+    "Iniciando sondeo de base de datos para trabajos de impresión..."
+  );
   setInterval(checkForPrintJobs, 5000);
   app.setLoginItemSettings({ openAtLogin: true });
 });
@@ -215,8 +620,9 @@ ipcMain.handle("get-latest-orders", async () => {
 
   try {
     const { data, error } = await supabaseClient
-      .from('comandas_cocina')
-      .select(`
+      .from("comandas_cocina")
+      .select(
+        `
         ComandaID,
         FechaCreacion,
         Comentario,
@@ -232,33 +638,44 @@ ipcMain.handle("get-latest-orders", async () => {
             DetalleID,
             Cantidad,
             platos (
-              Descripcion
+              Descripcion,
+              CategoriaID,
+              categorias (
+                Descripcion
+              )
             )
           )
         )
-      `)
-      .order('FechaCreacion', { ascending: false })
+      `
+      )
+      .order("FechaCreacion", { ascending: false })
       .limit(3);
 
     if (error) {
-      console.error('Error al obtener comandas recientes:', error.message);
+      console.error("Error al obtener comandas recientes:", error.message);
       return [];
     }
 
-    const result = (data || []).map(comanda => {
-      let mesa = 'N/A';
-      if (comanda.pedido?.pedido_mesas && Array.isArray(comanda.pedido.pedido_mesas)) {
+    const result = (data || []).map((comanda) => {
+      let mesa = "N/A";
+      if (
+        comanda.pedido?.pedido_mesas &&
+        Array.isArray(comanda.pedido.pedido_mesas)
+      ) {
         const mesas = comanda.pedido.pedido_mesas
-          .map(pm => pm.mesas?.NumeroMesa)
-          .filter(num => num !== null && num !== undefined);
-        mesa = mesas.length > 0 ? mesas.join(', ') : 'N/A';
+          .map((pm) => pm.mesas?.NumeroMesa)
+          .filter((num) => num !== null && num !== undefined);
+        mesa = mesas.length > 0 ? mesas.join(", ") : "N/A";
       }
-      
+
       let items = [];
-      if (comanda.pedido?.detallepedidos && Array.isArray(comanda.pedido.detallepedidos)) {
-        items = comanda.pedido.detallepedidos.map(detalle => ({
+      if (
+        comanda.pedido?.detallepedidos &&
+        Array.isArray(comanda.pedido.detallepedidos)
+      ) {
+        items = comanda.pedido.detallepedidos.map((detalle) => ({
           cantidad: detalle.Cantidad || 0,
-          descripcion: detalle.platos?.Descripcion || 'Sin nombre'
+          descripcion: detalle.platos?.Descripcion || "Sin nombre",
         }));
       }
 
@@ -266,16 +683,15 @@ ipcMain.handle("get-latest-orders", async () => {
         id: comanda.ComandaID,
         mesa: mesa,
         timestamp: comanda.FechaCreacion,
-        comentario: comanda.Comentario || '',
+        comentario: comanda.Comentario || "",
         fechaPedido: comanda.pedido?.Fecha || null,
-        items: items
+        items: items,
       };
     });
-    
-    return result;
 
+    return result;
   } catch (error) {
-    console.error('Error en la consulta de comandas recientes:', error.message);
+    console.error("Error en la consulta de comandas recientes:", error.message);
     return [];
   }
 });
@@ -289,8 +705,9 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
 
   try {
     const { data: comanda, error } = await supabaseClient
-      .from('comandas_cocina')
-      .select(`
+      .from("comandas_cocina")
+      .select(
+        `
         ComandaID,
         Comentario,
         FechaCreacion,
@@ -300,7 +717,11 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
           detallepedidos!detallepedidos_PedidoID_fkey (
             Cantidad,
             platos!detallepedidos_PlatoID_fkey (
-              Descripcion
+              Descripcion,
+              CategoriaID,
+              categorias!platos_CategoriaID_fkey (
+                Descripcion
+              )
             )
           ),
           pedido_mesas!pedido_mesas_PedidoID_fkey (
@@ -309,8 +730,9 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
             )
           )
         )
-      `)
-      .eq('ComandaID', commandId)
+      `
+      )
+      .eq("ComandaID", commandId)
       .single();
 
     if (error) {
@@ -331,82 +753,106 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       timeout: 3000,
     });
 
-    printer.alignCenter();
-    printer.bold(true);
-    printer.println("REIMPRESIÓN DE COMANDA");
-    printer.bold(false);
-    printer.println(`Comanda #${comanda.ComandaID}`);
-    printer.drawLine();
-
-    if (comanda.pedido) {
-      printer.alignLeft();
-      
-      const fechaOriginal = new Date(comanda.pedido.Fecha);
-      const fechaReimpresion = new Date();
-      printer.println(`Fecha Original: ${fechaOriginal.toLocaleDateString()} ${fechaOriginal.toLocaleTimeString()}`);
-      printer.println(`Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`);
-      printer.newLine();
-
-      let mesasTexto = 'N/A';
-      if (comanda.pedido.pedido_mesas && Array.isArray(comanda.pedido.pedido_mesas)) {
-        const numerosMesa = comanda.pedido.pedido_mesas
-          .map(pm => pm.mesas?.NumeroMesa)
-          .filter(num => num !== null && num !== undefined);
-        mesasTexto = numerosMesa.length > 0 ? numerosMesa.join(', ') : 'N/A';
-      }
-      
-      printer.setTextSize(1, 1);
-      printer.bold(true);
-      printer.println(`MESA(S): ${mesasTexto}`);
-      printer.setTextNormal();
-      printer.bold(false);
-      printer.drawLine();
-
-      if (comanda.pedido.detallepedidos && Array.isArray(comanda.pedido.detallepedidos)) {
-        printer.setTextSize(1, 2);
-        printer.bold(true);
-        printer.alignCenter();
-        printer.println("PRODUCTOS");
-        printer.drawLine();
-        printer.bold(false);
-
-        comanda.pedido.detallepedidos.forEach((detalle) => {
-          const descripcion = detalle.platos?.Descripcion || 'Producto no encontrado';
-          const cantidad = detalle.Cantidad || 0;
-          
-          printer.alignLeft();
-          printer.bold(true);
-          printer.println(`${cantidad}x ${descripcion}`);
-          printer.bold(false);
-        });
-
-      } else {
-        printer.println("No se encontraron productos en este pedido");
-      }
-    } else {
-      printer.println("No se encontró información del pedido");
-    }
-
-    if (comanda.Comentario && comanda.Comentario.trim() !== "") {
-      printer.drawLine();
+    // Determinar el tipo de comanda para REIMPRESIÓN e imprimir usando la función especializada
+    if (
+      comanda.Comentario &&
+      comanda.Comentario.includes("REIMPRESIÓN - Solo:")
+    ) {
+      console.log(
+        `🖨️ Reimprimiendo comanda de REIMPRESIÓN ESPECÍFICA #${comanda.ComandaID}`
+      );
+      // Para reimpresiones, usamos la cabecera especial de reimpresión
       printer.alignCenter();
       printer.bold(true);
-      printer.println("! INSTRUCCIONES !");
+      printer.println("REIMPRESIÓN DE COMANDA");
       printer.bold(false);
-      printer.alignLeft();
-      printer.println(comanda.Comentario);
+      printer.println(`Comanda #${comanda.ComandaID}`);
+      printer.drawLine();
+
+      // Agregar fecha de reimpresión
+      if (comanda.pedido) {
+        printer.alignLeft();
+        const fechaOriginal = new Date(comanda.pedido.Fecha);
+        const fechaReimpresion = new Date();
+        printer.println(
+          `Fecha Original: ${fechaOriginal.toLocaleDateString()} ${fechaOriginal.toLocaleTimeString()}`
+        );
+        printer.println(
+          `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
+        );
+        printer.newLine();
+      }
+
+      // Usar la función especializada pero sin la cabecera normal
+      await imprimirReimpresionEspecifica(printer, comanda, true);
+    } else if (
+      comanda.Comentario &&
+      comanda.Comentario.includes("NUEVOS PLATOS - Solo:")
+    ) {
+      console.log(
+        `🖨️ Reimprimiendo comanda de NUEVOS PLATOS #${comanda.ComandaID}`
+      );
+      // Para reimpresiones de nuevos platos, usar cabecera especial
+      printer.alignCenter();
+      printer.bold(true);
+      printer.println("REIMPRESIÓN DE COMANDA");
+      printer.bold(false);
+      printer.println(`Comanda #${comanda.ComandaID}`);
+      printer.drawLine();
+
+      // Agregar fecha de reimpresión
+      if (comanda.pedido) {
+        printer.alignLeft();
+        const fechaOriginal = new Date(comanda.pedido.Fecha);
+        const fechaReimpresion = new Date();
+        printer.println(
+          `Fecha Original: ${fechaOriginal.toLocaleDateString()} ${fechaOriginal.toLocaleTimeString()}`
+        );
+        printer.println(
+          `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
+        );
+        printer.newLine();
+      }
+
+      await imprimirNuevosPlatos(printer, comanda, true);
+    } else {
+      console.log(`🖨️ Reimprimiendo comanda NORMAL #${comanda.ComandaID}`);
+      // Para reimpresiones normales, usar cabecera especial
+      printer.alignCenter();
+      printer.bold(true);
+      printer.println("REIMPRESIÓN DE COMANDA");
+      printer.bold(false);
+      printer.println(`Comanda #${comanda.ComandaID}`);
+      printer.drawLine();
+
+      // Agregar fecha de reimpresión
+      if (comanda.pedido) {
+        printer.alignLeft();
+        const fechaOriginal = new Date(comanda.pedido.Fecha);
+        const fechaReimpresion = new Date();
+        printer.println(
+          `Fecha Original: ${fechaOriginal.toLocaleDateString()} ${fechaOriginal.toLocaleTimeString()}`
+        );
+        printer.println(
+          `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
+        );
+        printer.newLine();
+      }
+
+      await imprimirComandaNormal(printer, comanda, true);
     }
 
+    // Para reimpresiones, agregar marca especial al final
     printer.drawLine();
     printer.alignCenter();
     printer.println("REIMPRESIÓN");
     printer.cut();
-    
+
     await printer.execute();
 
     sendToWindow("update-status", {
       printer: "success",
-      message: `Comanda #${commandId} reimpresa `
+      message: `Comanda #${commandId} reimpresa `,
     });
 
     return { success: true };
@@ -414,7 +860,7 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
     console.error(`Error al reimprimir comanda #${commandId}:`, error.message);
     sendToWindow("update-status", {
       printer: "error",
-      message: `Error al reimprimir: ${error.message}`
+      message: `Error al reimprimir: ${error.message}`,
     });
     throw error;
   }
@@ -429,8 +875,9 @@ async function checkForPrintJobs() {
 
   try {
     const { data: comandas, error: comandasError } = await supabaseClient
-      .from('comandas_cocina')
-      .select(`
+      .from("comandas_cocina")
+      .select(
+        `
         ComandaID,
         Comentario,
         FechaCreacion,
@@ -440,7 +887,11 @@ async function checkForPrintJobs() {
           detallepedidos!detallepedidos_PedidoID_fkey (
             Cantidad,
             platos!detallepedidos_PlatoID_fkey (
-              Descripcion
+              Descripcion,
+              CategoriaID,
+              categorias!platos_CategoriaID_fkey (
+                Descripcion
+              )
             )
           ),
           pedido_mesas!pedido_mesas_PedidoID_fkey (
@@ -449,23 +900,32 @@ async function checkForPrintJobs() {
             )
           )
         )
-      `)
-      .eq('EstadoImpresion', 'pendiente');
+      `
+      )
+      .eq("EstadoImpresion", "pendiente");
 
     if (comandasError) {
-      console.error("Error al buscar comandas pendientes:", comandasError.message);
-      sendToWindow("update-status", { printer: "error", message: "Error al consultar comandas" });
+      console.error(
+        "Error al buscar comandas pendientes:",
+        comandasError.message
+      );
+      sendToWindow("update-status", {
+        printer: "error",
+        message: "Error al consultar comandas",
+      });
       return;
     }
 
     if (!comandas || comandas.length === 0) {
       return;
     }
-    
-    console.log(`Encontradas ${comandas.length} comanda(s) pendientes. Procesando...`);
+
+    console.log(
+      `Encontradas ${comandas.length} comanda(s) pendientes. Procesando...`
+    );
     sendToWindow("update-status", {
       printer: "printing",
-      message: `Imprimiendo ${comandas.length} comanda(s)...`
+      message: `Imprimiendo ${comandas.length} comanda(s)...`,
     });
 
     const printerIp = store.get("printerIp", DEFAULT_PRINTER_IP);
@@ -484,90 +944,52 @@ async function checkForPrintJobs() {
           timeout: 3000,
         });
 
-        printer.alignCenter();
-        printer.bold(true);
-        printer.println("COMANDA DE COCINA");
-        printer.bold(false);
-        printer.println(`Comanda #${comanda.ComandaID}`);
-        printer.drawLine();
-
-        if (comanda.pedido) {
-          printer.alignLeft();
-          
-          const fechaPedido = new Date(comanda.pedido.Fecha);
-          printer.println(`Fecha: ${fechaPedido.toLocaleDateString()} - Hora: ${fechaPedido.toLocaleTimeString()}`);
-          printer.newLine();
-
-          let mesasTexto = 'N/A';
-          if (comanda.pedido.pedido_mesas && Array.isArray(comanda.pedido.pedido_mesas)) {
-            const numerosMesa = comanda.pedido.pedido_mesas
-              .map(pm => pm.mesas?.NumeroMesa)
-              .filter(num => num !== null && num !== undefined);
-            mesasTexto = numerosMesa.length > 0 ? numerosMesa.join(', ') : 'N/A';
-          }
-          
-          printer.setTextSize(1, 1);
-          printer.bold(true);
-          printer.println(`MESA(S): ${mesasTexto}`);
-          printer.setTextNormal();
-          printer.bold(false);
-          printer.drawLine();
-
-          if (comanda.pedido.detallepedidos && Array.isArray(comanda.pedido.detallepedidos)) {
-            printer.setTextSize(1, 2);
-            printer.bold(true);
-            printer.alignCenter();
-            printer.println("PRODUCTOS");
-            printer.drawLine();
-            printer.bold(false);
-
-            comanda.pedido.detallepedidos.forEach((detalle) => {
-              const descripcion = detalle.platos?.Descripcion || 'Producto no encontrado';
-              const cantidad = detalle.Cantidad || 0;
-              
-              printer.alignLeft();
-              printer.bold(true);
-              printer.println(`${cantidad}x ${descripcion}`);
-              printer.bold(false);
-            });
-
-          } else {
-            printer.println("No se encontraron productos en este pedido");
-          }
+        // Determinar el tipo de comanda e imprimir usando la función especializada
+        if (
+          comanda.Comentario &&
+          comanda.Comentario.includes("REIMPRESIÓN - Solo:")
+        ) {
+          console.log(
+            `🖨️ Imprimiendo comanda de REIMPRESIÓN ESPECÍFICA #${comanda.ComandaID}`
+          );
+          await imprimirReimpresionEspecifica(printer, comanda);
+        } else if (
+          comanda.Comentario &&
+          comanda.Comentario.includes("NUEVOS PLATOS - Solo:")
+        ) {
+          console.log(
+            `🖨️ Imprimiendo comanda de NUEVOS PLATOS #${comanda.ComandaID}`
+          );
+          await imprimirNuevosPlatos(printer, comanda);
         } else {
-          printer.println("No se encontró información del pedido");
+          console.log(`🖨️ Imprimiendo comanda NORMAL #${comanda.ComandaID}`);
+          await imprimirComandaNormal(printer, comanda);
         }
 
-        if (comanda.Comentario && comanda.Comentario.trim() !== "") {
-          printer.drawLine();
-          printer.alignCenter();
-          printer.bold(true);
-          printer.println("! INSTRUCCIONES !");
-          printer.bold(false);
-          printer.alignLeft();
-          printer.println(comanda.Comentario);
-        }
-
-        printer.drawLine();
-        printer.alignCenter();
-        printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
         printer.cut();
 
         await printer.execute();
 
         const { error: updateError } = await supabaseClient
           .from("comandas_cocina")
-          .update({ EstadoImpresion: 'impreso' })
+          .update({ EstadoImpresion: "impreso" })
           .eq("ComandaID", comanda.ComandaID);
 
         if (updateError) {
-          console.error(`Error al actualizar estado de comanda #${comanda.ComandaID}:`, updateError.message);
+          console.error(
+            `Error al actualizar estado de comanda #${comanda.ComandaID}:`,
+            updateError.message
+          );
         } else {
-          console.log(`Comanda #${comanda.ComandaID} impresa y marcada como 'impreso'.`);
+          console.log(
+            `Comanda #${comanda.ComandaID} impresa y marcada como 'impreso'.`
+          );
         }
-
       } catch (printError) {
-        console.error(`Error al imprimir comanda #${comanda.ComandaID}:`, printError.message);
+        console.error(
+          `Error al imprimir comanda #${comanda.ComandaID}:`,
+          printError.message
+        );
         sendToWindow("update-status", {
           printer: "error",
           message: `Error imprimiendo comanda #${comanda.ComandaID}: ${printError.message}`,
@@ -579,7 +1001,6 @@ async function checkForPrintJobs() {
       printer: "success",
       message: "Comandas impresas. En espera... ",
     });
-
   } catch (error) {
     console.error("Error general en checkForPrintJobs:", error.message);
     sendToWindow("update-status", {

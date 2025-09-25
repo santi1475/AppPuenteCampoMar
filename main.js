@@ -70,12 +70,20 @@ function orderPlatosWithCaldosFirst(detalles) {
   // Log para debugging del ordenamiento
   console.log("🔄 Ordenamiento de platos:");
   console.log(`   Platos categoría 4 (primero): ${caldos.length}`);
-  caldos.forEach(plato => {
-    console.log(`     - ${plato.Cantidad || 1}x ${plato.platos?.Descripcion} (Cat: ${plato.platos?.CategoriaID})`);
+  caldos.forEach((plato) => {
+    console.log(
+      `     - ${plato.Cantidad || 1}x ${plato.platos?.Descripcion} (Cat: ${
+        plato.platos?.CategoriaID
+      })`
+    );
   });
   console.log(`   Otros platos: ${otros.length}`);
-  otros.forEach(plato => {
-    console.log(`     - ${plato.Cantidad || 1}x ${plato.platos?.Descripcion} (Cat: ${plato.platos?.CategoriaID})`);
+  otros.forEach((plato) => {
+    console.log(
+      `     - ${plato.Cantidad || 1}x ${plato.platos?.Descripcion} (Cat: ${
+        plato.platos?.CategoriaID
+      })`
+    );
   });
 
   return [...caldos, ...otros];
@@ -84,25 +92,29 @@ function orderPlatosWithCaldosFirst(detalles) {
 // Función auxiliar para obtener categorías de platos desde la base de datos
 async function obtenerCategoriasPlatos(descripcionesPlatos) {
   const supabaseClient = getSupabaseClient();
-  if (!supabaseClient || !descripcionesPlatos || descripcionesPlatos.length === 0) {
+  if (
+    !supabaseClient ||
+    !descripcionesPlatos ||
+    descripcionesPlatos.length === 0
+  ) {
     return {};
   }
 
   try {
     // Consultar platos que coincidan con las descripciones
     const { data: platos, error } = await supabaseClient
-      .from('platos')
-      .select('Descripcion, CategoriaID')
-      .in('Descripcion', descripcionesPlatos);
+      .from("platos")
+      .select("Descripcion, CategoriaID")
+      .in("Descripcion", descripcionesPlatos);
 
     if (error) {
-      console.error('Error al consultar categorías de platos:', error);
+      console.error("Error al consultar categorías de platos:", error);
       return {};
     }
 
     // Crear un mapa descripción -> CategoriaID
     const categoriasMap = {};
-    platos?.forEach(plato => {
+    platos?.forEach((plato) => {
       categoriasMap[plato.Descripcion] = plato.CategoriaID;
     });
 
@@ -113,7 +125,7 @@ async function obtenerCategoriasPlatos(descripcionesPlatos) {
 
     return categoriasMap;
   } catch (error) {
-    console.error('Error en obtenerCategoriasPlatos:', error);
+    console.error("Error en obtenerCategoriasPlatos:", error);
     return {};
   }
 }
@@ -140,8 +152,10 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
 
     // Log para verificar las categorías recibidas
     console.log("📊 Verificando categorías en imprimirComandaNormal:");
-    comanda.pedido.detallepedidos.forEach(detalle => {
-      console.log(`   ${detalle.Cantidad}x ${detalle.platos?.Descripcion} → Cat: ${detalle.platos?.CategoriaID}`);
+    comanda.pedido.detallepedidos.forEach((detalle) => {
+      console.log(
+        `   ${detalle.Cantidad}x ${detalle.platos?.Descripcion} → Cat: ${detalle.platos?.CategoriaID}`
+      );
     });
 
     // Ordenar platos poniendo caldos primero
@@ -184,9 +198,11 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
     printer.drawLine();
     printer.alignCenter();
     printer.bold(true);
+    printer.setTextSize(1, 2);
     printer.println("! INSTRUCCIONES !");
     printer.bold(false);
     printer.alignLeft();
+    printer.setTextSize(1, 2);
     printer.println(comentarioAMostrar);
   }
 
@@ -236,7 +252,7 @@ async function imprimirReimpresionEspecifica(
       if (match) {
         const cantidad = parseInt(match[1]);
         const descripcion = match[2].trim();
-        
+
         descripcionesPlatos.push(descripcion);
         platosParseados.push({
           Cantidad: cantidad,
@@ -261,9 +277,9 @@ async function imprimirReimpresionEspecifica(
 
     // Obtener categorías reales desde la base de datos
     const categoriasMap = await obtenerCategoriasPlatos(descripcionesPlatos);
-    
+
     // Actualizar los CategoriaID con datos reales
-    platosParseados.forEach(plato => {
+    platosParseados.forEach((plato) => {
       const categoriaReal = categoriasMap[plato.platos.Descripcion];
       if (categoriaReal !== undefined) {
         plato.platos.CategoriaID = categoriaReal;
@@ -340,12 +356,12 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
   if (match && match[1]) {
     const platosNuevos = match[1].trim();
 
-    // División delgada y subtítulo "Reimpresión"
+    // División delgada y subtítulo para platos nuevos
     printer.drawLine();
     printer.setTextSize(1, 2);
     printer.bold(true);
     printer.alignCenter();
-    printer.println("Reimpresion");
+    printer.println("PRODUCTOS AGREGADOS");
     printer.bold(false);
     printer.setTextNormal();
 
@@ -358,7 +374,7 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
     while ((match2 = platosPattern.exec(platosNuevos)) !== null) {
       const cantidad = parseInt(match2[1]);
       const descripcion = match2[2].trim();
-      
+
       descripcionesPlatos.push(descripcion);
       platosParseados.push({
         Cantidad: cantidad,
@@ -371,9 +387,8 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
 
     // Obtener categorías reales desde la base de datos
     const categoriasMap = await obtenerCategoriasPlatos(descripcionesPlatos);
-    
-    // Actualizar los CategoriaID con datos reales
-    platosParseados.forEach(plato => {
+
+    platosParseados.forEach((plato) => {
       const categoriaReal = categoriasMap[plato.platos.Descripcion];
       if (categoriaReal !== undefined) {
         plato.platos.CategoriaID = categoriaReal;
@@ -400,6 +415,21 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
 
     printer.bold(false);
     printer.setTextNormal();
+  }
+
+  // Instrucciones - extraer y mostrar el comentario del usuario para los platos nuevos
+  const comentarioUsuario = extraerComentarioUsuario(comanda.Comentario);
+
+  if (comentarioUsuario && comentarioUsuario.trim() !== "") {
+    printer.drawLine();
+    printer.setTextSize(1, 2);
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("! INSTRUCCIONES !");
+    printer.bold(false);
+    printer.alignLeft();
+    printer.setTextSize(1, 2);
+    printer.println(comentarioUsuario);
   }
 
   printer.drawLine();

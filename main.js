@@ -196,13 +196,13 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
 
   if (comentarioAMostrar && comentarioAMostrar.trim() !== "") {
     printer.drawLine();
+    printer.setTextSize(1, 2);
     printer.alignCenter();
     printer.bold(true);
-    printer.setTextSize(1, 2);
     printer.println("! INSTRUCCIONES !");
+    printer.setTextSize(1, 2);
     printer.bold(false);
     printer.alignLeft();
-    printer.setTextSize(1, 2);
     printer.println(comentarioAMostrar);
   }
 
@@ -332,6 +332,7 @@ async function imprimirReimpresionEspecifica(
     printer.alignCenter();
     printer.bold(true);
     printer.println("! INSTRUCCIONES !");
+    printer.setTextSize(1, 2);
     printer.bold(false);
     printer.alignLeft();
     printer.println(comentarioAMostrar);
@@ -426,9 +427,9 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
     printer.alignCenter();
     printer.bold(true);
     printer.println("! INSTRUCCIONES !");
+    printer.setTextSize(1, 2);
     printer.bold(false);
     printer.alignLeft();
-    printer.setTextSize(1, 2);
     printer.println(comentarioUsuario);
   }
 

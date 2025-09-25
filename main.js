@@ -475,7 +475,17 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
       const numerosMesa = comanda.pedido.pedido_mesas
         .map((pm) => pm.mesas?.NumeroMesa)
         .filter((num) => num !== null && num !== undefined);
-      mesasTexto = numerosMesa.length > 0 ? numerosMesa.join(", ") : "N/A";
+      
+      if (numerosMesa.length > 0) {
+        // Verificar si hay mesa 0 (para llevar)
+        if (numerosMesa.includes(0)) {
+          mesasTexto = "PARA LLEVAR";
+        } else {
+          mesasTexto = numerosMesa.join(", ");
+        }
+      } else {
+        mesasTexto = "N/A";
+      }
     }
 
     printer.setTextSize(1, 1);
@@ -696,7 +706,17 @@ ipcMain.handle("get-latest-orders", async () => {
         const mesas = comanda.pedido.pedido_mesas
           .map((pm) => pm.mesas?.NumeroMesa)
           .filter((num) => num !== null && num !== undefined);
-        mesa = mesas.length > 0 ? mesas.join(", ") : "N/A";
+        
+        if (mesas.length > 0) {
+          // Verificar si hay mesa 0 (para llevar)
+          if (mesas.includes(0)) {
+            mesa = "PARA LLEVAR";
+          } else {
+            mesa = mesas.join(", ");
+          }
+        } else {
+          mesa = "N/A";
+        }
       }
 
       let items = [];

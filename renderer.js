@@ -5,6 +5,7 @@ const printerIpInput = document.getElementById('printer-ip');
 const saveButton = document.getElementById('save-button');
 const testPrintButton = document.getElementById('test-print-button');
 const refreshButton = document.getElementById('refresh-button'); 
+const dailyReportButton = document.getElementById('daily-report-button');
 const closeSettingsButton = document.getElementById('close-settings-button'); 
 const refreshOrdersButton = document.getElementById('refresh-orders');
 const latestOrdersContainer = document.getElementById('latest-orders');
@@ -44,6 +45,15 @@ testPrintButton.addEventListener('click', () => {
 
 refreshButton.addEventListener('click', () => {
     window.electronAPI.relaunchApp();
+});
+
+dailyReportButton.addEventListener('click', async () => {
+    try {
+        await window.electronAPI.printDailyReport();
+    } catch (e) {
+        alert('Error generando reporte diario');
+        console.error(e);
+    }
 });
 
 window.electronAPI.requestInitialConfig();

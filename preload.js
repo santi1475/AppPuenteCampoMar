@@ -16,4 +16,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   verifyPassword: (password) => ipcRenderer.invoke("verify-password", password),
   getLatestOrders: () => ipcRenderer.invoke("get-latest-orders"),
   reprintCommand: (commandId) => ipcRenderer.invoke("reprint-command", commandId),
+  printDailyReport: () => ipcRenderer.invoke("print-daily-report"),
 });

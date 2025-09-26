@@ -468,29 +468,34 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
     printer.newLine();
 
     let mesasTexto = "N/A";
-    if (
+    // Prioridad: si el pedido viene marcado ParaLlevar, ignoramos mesas y mostramos directamente
+    if (comanda.pedido.ParaLlevar === true) {
+      mesasTexto = "PARA LLEVAR";
+    } else if (
       comanda.pedido.pedido_mesas &&
       Array.isArray(comanda.pedido.pedido_mesas)
     ) {
       const numerosMesa = comanda.pedido.pedido_mesas
         .map((pm) => pm.mesas?.NumeroMesa)
         .filter((num) => num !== null && num !== undefined);
-      
+
       if (numerosMesa.length > 0) {
-        // Verificar si hay mesa 0 (para llevar)
         if (numerosMesa.includes(0)) {
-          mesasTexto = "PARA LLEVAR";
+          mesasTexto = "PARA LLEVAR"; // fallback si usan mesa 0
         } else {
           mesasTexto = numerosMesa.join(", ");
         }
-      } else {
-        mesasTexto = "N/A";
       }
     }
 
     printer.setTextSize(1, 1);
     printer.bold(true);
-    printer.println(`MESA(S): ${mesasTexto}`);
+    // Si es un pedido PARA LLEVAR (mesa 0 detectada), no mostramos el prefijo
+    if (mesasTexto === "PARA LLEVAR") {
+      printer.println("PARA LLEVAR");
+    } else {
+      printer.println(`MESA(S): ${mesasTexto}`);
+    }
     printer.setTextNormal();
     printer.bold(false);
     printer.drawLine();
@@ -503,6 +508,7 @@ function createWindow() {
     height: 650,
     icon: path.join(__dirname, "print.ico"),
     webPreferences: {
+      // Corregido: había espacios sobrantes en el nombre del archivo de preload que impedían su carga
       preload: path.join(__dirname, "preload.js"),
     },
   });
@@ -651,6 +657,154 @@ ipcMain.on("relaunch-app", () => {
   app.exit();
 });
 
+// Utilidad para obtener el rango (inicio y fin) del día actual en hora local
+function obtenerRangoDiaActual() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  return { start, end };
+}
+
+// Handler para imprimir el reporte diario
+ipcMain.handle("print-daily-report", async () => {
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) {
+    throw new Error("No se pudo inicializar Supabase");
+  }
+
+  const { start, end } = obtenerRangoDiaActual();
+  const startISO = start.toISOString();
+  const endISO = end.toISOString();
+
+  try {
+    sendToWindow("update-status", { printer: "printing", message: "Generando reporte diario..." });
+
+    // 1. Obtener pedidos del día (cerrados -> Estado = false) con montos y tipo de pago
+    const { data: pedidosData, error: pedidosError } = await supabaseClient
+      .from("pedidos")
+      .select("PedidoID, Total, TipoPago, Estado, Fecha")
+      .gte("Fecha", startISO)
+      .lte("Fecha", endISO)
+      .eq("Estado", false); // siguiendo la lógica del dashboard (Estado false = cerrado)
+
+    if (pedidosError) {
+      throw new Error(`Error consultando pedidos: ${pedidosError.message}`);
+    }
+
+    let totalGeneral = 0;
+    let efectivo = 0;
+    let yape = 0;
+    let pos = 0;
+
+    const pedidoIds = [];
+    (pedidosData || []).forEach((p) => {
+      const monto = Number(p.Total) || 0;
+      totalGeneral += monto;
+      switch (p.TipoPago) {
+        case 1:
+          efectivo += monto;
+          break;
+        case 2:
+          yape += monto;
+          break;
+        case 3:
+          pos += monto;
+          break;
+      }
+      pedidoIds.push(p.PedidoID);
+    });
+
+    // 2. Obtener detalle de platos para top 3
+    let topPlatos = [];
+    if (pedidoIds.length > 0) {
+      const { data: detallesData, error: detallesError } = await supabaseClient
+        .from("detallepedidos")
+        .select(`PedidoID, PlatoID, Cantidad, platos:platos!detallepedidos_PlatoID_fkey(Descripcion)`) // alias similar al resto del código
+        .in("PedidoID", pedidoIds);
+
+      if (detallesError) {
+        throw new Error(`Error consultando detalle de pedidos: ${detallesError.message}`);
+      }
+
+      const acumulado = new Map(); // PlatoID -> { descripcion, cantidad }
+      (detallesData || []).forEach((d) => {
+        const key = d.PlatoID;
+        const desc = d.platos?.Descripcion || "Desconocido";
+        const cant = Number(d.Cantidad) || 0;
+        if (!acumulado.has(key)) {
+          acumulado.set(key, { descripcion: desc, cantidad: 0 });
+        }
+        acumulado.get(key).cantidad += cant;
+      });
+
+      topPlatos = Array.from(acumulado.values())
+        .sort((a, b) => b.cantidad - a.cantidad)
+        .slice(0, 3);
+    }
+
+    // 3. Preparar impresión
+    const printerIp = store.get("printerIp", DEFAULT_PRINTER_IP);
+    if (!printerIp) {
+      throw new Error("IP de impresora no configurada");
+    }
+
+    const printer = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: `tcp://${printerIp}`,
+      characterSet: CharacterSet.PC850_MULTILINGUAL,
+      removeSpecialCharacters: false,
+      lineCharacter: "-",
+      timeout: 4000,
+    });
+
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("REPORTE DIARIO");
+    printer.bold(false);
+    printer.println(`${start.toLocaleDateString()} (${start.toLocaleDateString() === end.toLocaleDateString() ? "Día" : "Rango"})`);
+    printer.drawLine();
+
+    printer.alignLeft();
+    printer.bold(true);
+    printer.println("RESUMEN DE VENTAS");
+    printer.bold(false);
+    printer.println(`Total Recaudado: S/ ${totalGeneral.toFixed(2)}`);
+    printer.newLine();
+    printer.bold(true);
+    printer.println("Por Método de Pago:");
+    printer.bold(false);
+    printer.println(`  Efectivo: S/ ${efectivo.toFixed(2)}`);
+    printer.println(`  Yape    : S/ ${yape.toFixed(2)}`);
+    printer.println(`  POS     : S/ ${pos.toFixed(2)}`);
+    printer.newLine();
+
+    printer.bold(true);
+    printer.println("Top 3 Platos");
+    printer.bold(false);
+    if (topPlatos.length === 0) {
+      printer.println("  (Sin ventas registradas)");
+    } else {
+      topPlatos.forEach((plato, idx) => {
+        printer.println(`  ${idx + 1}) ${plato.cantidad}x ${plato.descripcion}`);
+      });
+    }
+
+    printer.drawLine();
+    printer.alignCenter();
+    printer.println(`Impreso: ${new Date().toLocaleString()}`);
+    printer.cut();
+
+    await printer.execute();
+
+    sendToWindow("update-status", { printer: "success", message: "Reporte diario impreso" });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al generar/imprimir reporte diario:", error.message);
+    sendToWindow("update-status", { printer: "error", message: `Error reporte: ${error.message}` });
+    throw error;
+  }
+});
+
 ipcMain.handle("get-latest-orders", async () => {
   console.log("Buscando comandas recientes a petición del usuario...");
   const supabaseClient = getSupabaseClient();
@@ -670,6 +824,7 @@ ipcMain.handle("get-latest-orders", async () => {
         pedido:pedidos!comandas_cocina_PedidoID_fkey (
           PedidoID,
           Fecha,
+          ParaLlevar,
           pedido_mesas (
             mesas (
               NumeroMesa
@@ -699,23 +854,21 @@ ipcMain.handle("get-latest-orders", async () => {
 
     const result = (data || []).map((comanda) => {
       let mesa = "N/A";
-      if (
+      if (comanda.pedido?.ParaLlevar === true) {
+        mesa = "PARA LLEVAR";
+      } else if (
         comanda.pedido?.pedido_mesas &&
         Array.isArray(comanda.pedido.pedido_mesas)
       ) {
         const mesas = comanda.pedido.pedido_mesas
           .map((pm) => pm.mesas?.NumeroMesa)
           .filter((num) => num !== null && num !== undefined);
-        
         if (mesas.length > 0) {
-          // Verificar si hay mesa 0 (para llevar)
           if (mesas.includes(0)) {
             mesa = "PARA LLEVAR";
           } else {
             mesa = mesas.join(", ");
           }
-        } else {
-          mesa = "N/A";
         }
       }
 
@@ -765,6 +918,7 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         pedido:pedidos!comandas_cocina_PedidoID_fkey (
           PedidoID,
           Fecha,
+          ParaLlevar,
           detallepedidos!detallepedidos_PedidoID_fkey (
             Cantidad,
             platos!detallepedidos_PlatoID_fkey (

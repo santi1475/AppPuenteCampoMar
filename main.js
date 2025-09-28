@@ -465,6 +465,7 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
     printer.println(
       `Fecha: ${fechaPedido.toLocaleDateString()} - Hora: ${fechaPedido.toLocaleTimeString()}`
     );
+    const mozoNombre = comanda.pedido.empleados?.Nombre || comanda.pedido.MozoNombre || comanda.pedido.Mozo || null;
     printer.newLine();
 
     let mesasTexto = "N/A";
@@ -490,11 +491,18 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
 
     printer.setTextSize(1, 1);
     printer.bold(true);
-    // Si es un pedido PARA LLEVAR (mesa 0 detectada), no mostramos el prefijo
+    // Construir línea combinada Mesa(s) + Mozo (si existe)
     if (mesasTexto === "PARA LLEVAR") {
-      printer.println("PARA LLEVAR");
+      if (mozoNombre) {
+        printer.println(`PARA LLEVAR | Mozo: ${mozoNombre}`);
+      } else {
+        printer.println("PARA LLEVAR");
+      }
     } else {
-      printer.println(`MESA(S): ${mesasTexto}`);
+      const linea = mozoNombre
+        ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}`
+        : `MESA(S): ${mesasTexto}`;
+      printer.println(linea);
     }
     printer.setTextNormal();
     printer.bold(false);
@@ -825,6 +833,8 @@ ipcMain.handle("get-latest-orders", async () => {
           PedidoID,
           Fecha,
           ParaLlevar,
+          EmpleadoID,
+          empleados:empleados ( Nombre ),
           pedido_mesas (
             mesas (
               NumeroMesa
@@ -889,6 +899,7 @@ ipcMain.handle("get-latest-orders", async () => {
         timestamp: comanda.FechaCreacion,
         comentario: comanda.Comentario || "",
         fechaPedido: comanda.pedido?.Fecha || null,
+        mozo: comanda.pedido?.empleados?.Nombre || null,
         items: items,
       };
     });
@@ -919,6 +930,8 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
           PedidoID,
           Fecha,
           ParaLlevar,
+            EmpleadoID,
+            empleados:empleados ( Nombre ),
           detallepedidos!detallepedidos_PedidoID_fkey (
             Cantidad,
             platos!detallepedidos_PlatoID_fkey (
@@ -985,7 +998,35 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         printer.println(
           `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
         );
+        const mozoNombre = comanda.pedido.empleados?.Nombre || null;
+        // Construcción de mesas / para llevar
+        let mesasTexto = "N/A";
+        if (comanda.pedido.ParaLlevar === true) {
+          mesasTexto = "PARA LLEVAR";
+        } else if (
+          comanda.pedido.pedido_mesas &&
+          Array.isArray(comanda.pedido.pedido_mesas)
+        ) {
+          const numerosMesa = comanda.pedido.pedido_mesas
+            .map((pm) => pm.mesas?.NumeroMesa)
+            .filter((num) => num !== null && num !== undefined);
+          if (numerosMesa.length > 0) {
+            if (numerosMesa.includes(0)) {
+              mesasTexto = "PARA LLEVAR";
+            } else {
+              mesasTexto = numerosMesa.join(", ");
+            }
+          }
+        }
         printer.newLine();
+        printer.bold(true);
+        if (mesasTexto === "PARA LLEVAR") {
+          printer.println(mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR");
+        } else {
+          printer.println(mozoNombre ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}` : `MESA(S): ${mesasTexto}`);
+        }
+        printer.bold(false);
+        printer.drawLine();
       }
 
       // Usar la función especializada pero sin la cabecera normal
@@ -1016,7 +1057,34 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         printer.println(
           `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
         );
+        const mozoNombre = comanda.pedido.empleados?.Nombre || null;
+        let mesasTexto = "N/A";
+        if (comanda.pedido.ParaLlevar === true) {
+          mesasTexto = "PARA LLEVAR";
+        } else if (
+          comanda.pedido.pedido_mesas &&
+          Array.isArray(comanda.pedido.pedido_mesas)
+        ) {
+          const numerosMesa = comanda.pedido.pedido_mesas
+            .map((pm) => pm.mesas?.NumeroMesa)
+            .filter((num) => num !== null && num !== undefined);
+          if (numerosMesa.length > 0) {
+            if (numerosMesa.includes(0)) {
+              mesasTexto = "PARA LLEVAR";
+            } else {
+              mesasTexto = numerosMesa.join(", ");
+            }
+          }
+        }
         printer.newLine();
+        printer.bold(true);
+        if (mesasTexto === "PARA LLEVAR") {
+          printer.println(mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR");
+        } else {
+          printer.println(mozoNombre ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}` : `MESA(S): ${mesasTexto}`);
+        }
+        printer.bold(false);
+        printer.drawLine();
       }
 
       await imprimirNuevosPlatos(printer, comanda, true);
@@ -1041,7 +1109,34 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         printer.println(
           `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
         );
+        const mozoNombre = comanda.pedido.empleados?.Nombre || null;
+        let mesasTexto = "N/A";
+        if (comanda.pedido.ParaLlevar === true) {
+          mesasTexto = "PARA LLEVAR";
+        } else if (
+          comanda.pedido.pedido_mesas &&
+          Array.isArray(comanda.pedido.pedido_mesas)
+        ) {
+          const numerosMesa = comanda.pedido.pedido_mesas
+            .map((pm) => pm.mesas?.NumeroMesa)
+            .filter((num) => num !== null && num !== undefined);
+          if (numerosMesa.length > 0) {
+            if (numerosMesa.includes(0)) {
+              mesasTexto = "PARA LLEVAR";
+            } else {
+              mesasTexto = numerosMesa.join(", ");
+            }
+          }
+        }
         printer.newLine();
+        printer.bold(true);
+        if (mesasTexto === "PARA LLEVAR") {
+          printer.println(mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR");
+        } else {
+          printer.println(mozoNombre ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}` : `MESA(S): ${mesasTexto}`);
+        }
+        printer.bold(false);
+        printer.drawLine();
       }
 
       await imprimirComandaNormal(printer, comanda, true);
@@ -1089,6 +1184,8 @@ async function checkForPrintJobs() {
         pedido:pedidos!comandas_cocina_PedidoID_fkey (
           PedidoID,
           Fecha,
+          EmpleadoID,
+          empleados:empleados ( Nombre ),
           detallepedidos!detallepedidos_PedidoID_fkey (
             Cantidad,
             platos!detallepedidos_PlatoID_fkey (

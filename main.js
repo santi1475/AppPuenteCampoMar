@@ -10,6 +10,9 @@ const { createClient } = require("@supabase/supabase-js");
 const store = new Store();
 let supabase;
 
+// Control de duplicados - mantener track de comandas en proceso
+let comandasEnProceso = new Set();
+
 let envPath;
 if (app.isPackaged) {
   envPath = path.join(process.resourcesPath, ".env");
@@ -132,9 +135,18 @@ async function obtenerCategoriasPlatos(descripcionesPlatos) {
 
 // Función para imprimir comanda normal (pedido completo)
 async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
-  // Cabecera común solo si no se debe omitir
+  // Determinar si es un pedido para llevar basado en las mesas
+  const esParaLlevar = !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
+  
+  // Cabecera específica según el tipo de pedido
   if (!omitirCabecera) {
-    imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+    if (esParaLlevar) {
+      // PARA LLEVAR - Usar cabecera completa con información del mozo
+      imprimirCabeceraComanda(printer, comanda, "COMANDA PARA LLEVAR");
+    } else {
+      // PARA MESA - Caso 1
+      imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+    }
   }
 
   if (
@@ -346,9 +358,18 @@ async function imprimirReimpresionEspecifica(
 
 // Función para imprimir nuevos platos (platos agregados recientemente)
 async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
-  // Cabecera común solo si no se debe omitir
+  // Determinar si es un pedido para llevar basado en las mesas
+  const pedidoEsParaLlevar = !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
+  
+  // Cabecera específica según el tipo de pedido
   if (!omitirCabecera) {
-    imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+    if (pedidoEsParaLlevar) {
+      // PARA LLEVAR - Usar cabecera completa con información del mozo
+      imprimirCabeceraComanda(printer, comanda, "COMANDA PARA LLEVAR");
+    } else {
+      // PARA MESA - Productos agregados en pedidos de mesa
+      imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+    }
   }
 
   const regex = /NUEVOS PLATOS - Solo: ([^|]+)/;
@@ -357,14 +378,13 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
   if (match && match[1]) {
     const platosNuevos = match[1].trim();
 
-    // División delgada y subtítulo para platos nuevos
-    printer.drawLine();
+    // Título específico según el contexto
     printer.setTextSize(1, 2);
     printer.bold(true);
     printer.alignCenter();
     printer.println("PRODUCTOS AGREGADOS");
+    printer.drawLine();
     printer.bold(false);
-    printer.setTextNormal();
 
     // Parsear platos nuevos
     const platosPattern = /(\d+)x\s+([^,]+)/g;
@@ -444,8 +464,8 @@ function extraerComentarioUsuario(comentarioCompleto) {
 
   // Buscar si hay un comentario después del "|"
   const match = comentarioCompleto.match(/\|\s*(.+)$/);
-  const resultado = match ? match[1].trim() : "";
-
+  let resultado = match ? match[1].trim() : "";
+  
   return resultado;
 }
 
@@ -469,23 +489,33 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
     printer.newLine();
 
     let mesasTexto = "N/A";
-    // Prioridad: si el pedido viene marcado ParaLlevar, ignoramos mesas y mostramos directamente
+    // Determinar si es pedido para llevar
+    // 1. Si viene marcado explícitamente como ParaLlevar
     if (comanda.pedido.ParaLlevar === true) {
       mesasTexto = "PARA LLEVAR";
-    } else if (
-      comanda.pedido.pedido_mesas &&
-      Array.isArray(comanda.pedido.pedido_mesas)
+    } 
+    // 2. Si no tiene mesas asignadas o están vacías (pedidos para llevar puros)
+    else if (
+      !comanda.pedido.pedido_mesas || 
+      comanda.pedido.pedido_mesas.length === 0
     ) {
+      mesasTexto = "PARA LLEVAR";
+    }
+    // 3. Si tiene mesas, revisar cuáles son
+    else if (Array.isArray(comanda.pedido.pedido_mesas)) {
       const numerosMesa = comanda.pedido.pedido_mesas
         .map((pm) => pm.mesas?.NumeroMesa)
         .filter((num) => num !== null && num !== undefined);
 
       if (numerosMesa.length > 0) {
         if (numerosMesa.includes(0)) {
-          mesasTexto = "PARA LLEVAR"; // fallback si usan mesa 0
+          mesasTexto = "PARA LLEVAR"; // mesa 0 = para llevar
         } else {
           mesasTexto = numerosMesa.join(", ");
         }
+      } else {
+        // Si pedido_mesas existe pero no tiene números válidos = para llevar
+        mesasTexto = "PARA LLEVAR";
       }
     }
 
@@ -1223,8 +1253,17 @@ async function checkForPrintJobs() {
     }
 
     console.log(
-      `Encontradas ${comandas.length} comanda(s) pendientes. Procesando...`
+      `🔍 Encontradas ${comandas.length} comanda(s) pendientes. Procesando...`
     );
+    
+    // Log detallado de cada comanda encontrada
+    comandas.forEach(comanda => {
+      console.log(`📋 Comanda #${comanda.ComandaID}:`, {
+        Comentario: comanda.Comentario,
+        FechaCreacion: comanda.FechaCreacion,
+        PedidoID: comanda.pedido?.PedidoID
+      });
+    });
     sendToWindow("update-status", {
       printer: "printing",
       message: `Imprimiendo ${comandas.length} comanda(s)...`,
@@ -1236,6 +1275,16 @@ async function checkForPrintJobs() {
     }
 
     for (const comanda of comandas) {
+      // Verificar si esta comanda ya está en proceso para evitar duplicados
+      if (comandasEnProceso.has(comanda.ComandaID)) {
+        console.log(`⏭️ Saltando comanda #${comanda.ComandaID} - ya está en proceso`);
+        continue;
+      }
+
+      // Marcar como en proceso
+      comandasEnProceso.add(comanda.ComandaID);
+      console.log(`🔄 Procesando comanda #${comanda.ComandaID} (en proceso: ${comandasEnProceso.size})`);
+
       try {
         const printer = new ThermalPrinter({
           type: PrinterTypes.EPSON,
@@ -1296,6 +1345,10 @@ async function checkForPrintJobs() {
           printer: "error",
           message: `Error imprimiendo comanda #${comanda.ComandaID}: ${printError.message}`,
         });
+      } finally {
+        // Siempre limpiar el control de duplicados, sin importar si fue exitoso o falló
+        comandasEnProceso.delete(comanda.ComandaID);
+        console.log(`🧹 Liberando comanda #${comanda.ComandaID} del control de duplicados (restantes: ${comandasEnProceso.size})`);
       }
     }
 

@@ -70,7 +70,6 @@ function orderPlatosWithCaldosFirst(detalles) {
     return detalle.platos?.CategoriaID !== CATEGORIA_CALDO_ID;
   });
 
-  // Log para debugging del ordenamiento
   console.log("🔄 Ordenamiento de platos:");
   console.log(`   Platos categoría 4 (primero): ${caldos.length}`);
   caldos.forEach((plato) => {
@@ -92,7 +91,6 @@ function orderPlatosWithCaldosFirst(detalles) {
   return [...caldos, ...otros];
 }
 
-// Función auxiliar para obtener categorías de platos desde la base de datos
 async function obtenerCategoriasPlatos(descripcionesPlatos) {
   const supabaseClient = getSupabaseClient();
   if (
@@ -104,7 +102,6 @@ async function obtenerCategoriasPlatos(descripcionesPlatos) {
   }
 
   try {
-    // Consultar platos que coincidan con las descripciones
     const { data: platos, error } = await supabaseClient
       .from("platos")
       .select("Descripcion, CategoriaID")
@@ -115,7 +112,6 @@ async function obtenerCategoriasPlatos(descripcionesPlatos) {
       return {};
     }
 
-    // Crear un mapa descripción -> CategoriaID
     const categoriasMap = {};
     platos?.forEach((plato) => {
       categoriasMap[plato.Descripcion] = plato.CategoriaID;
@@ -133,18 +129,14 @@ async function obtenerCategoriasPlatos(descripcionesPlatos) {
   }
 }
 
-// Función para imprimir comanda normal (pedido completo)
 async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
-  // Determinar si es un pedido para llevar basado en las mesas
-  const esParaLlevar = !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
-  
-  // Cabecera específica según el tipo de pedido
+  const esParaLlevar =
+    !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
+
   if (!omitirCabecera) {
     if (esParaLlevar) {
-      // PARA LLEVAR - Usar cabecera completa con información del mozo
       imprimirCabeceraComanda(printer, comanda, "COMANDA PARA LLEVAR");
     } else {
-      // PARA MESA - Caso 1
       imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
     }
   }
@@ -154,7 +146,6 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
     comanda.pedido.detallepedidos &&
     Array.isArray(comanda.pedido.detallepedidos)
   ) {
-    // Título PRODUCTOS
     printer.setTextSize(1, 2);
     printer.bold(true);
     printer.alignCenter();
@@ -162,7 +153,6 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
     printer.drawLine();
     printer.bold(false);
 
-    // Log para verificar las categorías recibidas
     console.log("📊 Verificando categorías en imprimirComandaNormal:");
     comanda.pedido.detallepedidos.forEach((detalle) => {
       console.log(
@@ -170,12 +160,10 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
       );
     });
 
-    // Ordenar platos poniendo caldos primero
     const detallesOrdenados = orderPlatosWithCaldosFirst(
       comanda.pedido.detallepedidos
     );
 
-    // Imprimir platos en formato de columnas
     printer.setTextSize(1, 2);
     printer.alignLeft();
     printer.bold(true);
@@ -185,8 +173,7 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
         detalle.platos?.Descripcion || "Producto no encontrado";
       const cantidad = detalle.Cantidad || 0;
 
-      // Formato de columnas: cantidad justificada a la izquierda, descripción después
-      const cantidadStr = `${cantidad}x`.padEnd(4); // 4 espacios para la cantidad
+      const cantidadStr = `${cantidad}x`.padEnd(4);
       printer.println(`${cantidadStr}${descripcion}`);
     });
 
@@ -194,10 +181,8 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
     printer.setTextNormal();
   }
 
-  // Instrucciones - mostrar solo el comentario del usuario (sin marcadores técnicos)
   let comentarioAMostrar = comanda.Comentario || "";
 
-  // Si tiene marcadores técnicos, extraer solo el comentario del usuario
   if (
     comanda.Comentario &&
     (comanda.Comentario.includes("REIMPRESIÓN - Solo:") ||
@@ -218,7 +203,6 @@ async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
     printer.println(comentarioAMostrar);
   }
 
-  // Footer
   printer.drawLine();
   printer.alignCenter();
   printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
@@ -239,7 +223,6 @@ async function imprimirReimpresionEspecifica(
   if (match && match[1]) {
     const platosEspecificos = match[1].trim();
 
-    // Título PRODUCTOS
     printer.setTextSize(1, 2);
     printer.bold(true);
     printer.alignCenter();
@@ -247,11 +230,9 @@ async function imprimirReimpresionEspecifica(
     printer.drawLine();
     printer.bold(false);
 
-    // Imprimir los platos específicos en formato de columnas
     printer.alignLeft();
     printer.bold(true);
 
-    // Parsear el texto de platos específicos para formato de columnas y ordenamiento
     const platosArray = platosEspecificos
       .split(",")
       .map((plato) => plato.trim());
@@ -259,7 +240,6 @@ async function imprimirReimpresionEspecifica(
     const descripcionesPlatos = [];
 
     platosArray.forEach((plato) => {
-      // Buscar patrón "cantidad x descripción"
       const match = plato.match(/^(\d+)x\s*(.+)$/);
       if (match) {
         const cantidad = parseInt(match[1]);
@@ -270,12 +250,11 @@ async function imprimirReimpresionEspecifica(
           Cantidad: cantidad,
           platos: {
             Descripcion: descripcion,
-            CategoriaID: 1, // Valor por defecto, se actualizará con datos reales
+            CategoriaID: 1,
           },
           textoOriginal: plato,
         });
       } else {
-        // Si no coincide con el patrón, mantener tal como viene
         platosParseados.push({
           Cantidad: 1,
           platos: {
@@ -287,10 +266,8 @@ async function imprimirReimpresionEspecifica(
       }
     });
 
-    // Obtener categorías reales desde la base de datos
     const categoriasMap = await obtenerCategoriasPlatos(descripcionesPlatos);
 
-    // Actualizar los CategoriaID con datos reales
     platosParseados.forEach((plato) => {
       const categoriaReal = categoriasMap[plato.platos.Descripcion];
       if (categoriaReal !== undefined) {
@@ -298,22 +275,18 @@ async function imprimirReimpresionEspecifica(
       }
     });
 
-    // Ordenar platos poniendo caldos (CategoriaID = 4) primero
     const platosOrdenados = orderPlatosWithCaldosFirst(platosParseados);
 
-    // Imprimir los platos ordenados
     platosOrdenados.forEach((detalle) => {
       if (
         detalle.textoOriginal &&
         !detalle.textoOriginal.match(/^(\d+)x\s*(.+)$/)
       ) {
-        // Si es texto original sin patrón, imprimir tal como viene
         printer.println(detalle.textoOriginal);
       } else {
-        // Aplicar formato de columnas
         const cantidad = detalle.Cantidad;
         const descripcion = detalle.platos?.Descripcion || "";
-        const cantidadStr = `${cantidad}x`.padEnd(4); // 4 espacios para la cantidad
+        const cantidadStr = `${cantidad}x`.padEnd(4);
         printer.println(`${cantidadStr}${descripcion}`);
       }
     });
@@ -323,9 +296,7 @@ async function imprimirReimpresionEspecifica(
 
   printer.setTextNormal();
 
-  // Instrucciones - solo mostrar el comentario del usuario (no la info técnica)
   const comentarioUsuario = extraerComentarioUsuario(comanda.Comentario);
-  // Versión de respaldo: si no se extrae comentario pero hay "|", mostrar todo después de "|"
   let comentarioAMostrar = comentarioUsuario;
   if (
     !comentarioAMostrar &&
@@ -350,24 +321,19 @@ async function imprimirReimpresionEspecifica(
     printer.println(comentarioAMostrar);
   }
 
-  // Footer
   printer.drawLine();
   printer.alignCenter();
   printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
 }
 
-// Función para imprimir nuevos platos (platos agregados recientemente)
 async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
-  // Determinar si es un pedido para llevar basado en las mesas
-  const pedidoEsParaLlevar = !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
-  
-  // Cabecera específica según el tipo de pedido
+  const pedidoEsParaLlevar =
+    !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
+
   if (!omitirCabecera) {
     if (pedidoEsParaLlevar) {
-      // PARA LLEVAR - Usar cabecera completa con información del mozo
       imprimirCabeceraComanda(printer, comanda, "COMANDA PARA LLEVAR");
     } else {
-      // PARA MESA - Productos agregados en pedidos de mesa
       imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
     }
   }
@@ -378,7 +344,6 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
   if (match && match[1]) {
     const platosNuevos = match[1].trim();
 
-    // Título específico según el contexto
     printer.setTextSize(1, 2);
     printer.bold(true);
     printer.alignCenter();
@@ -386,7 +351,6 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
     printer.drawLine();
     printer.bold(false);
 
-    // Parsear platos nuevos
     const platosPattern = /(\d+)x\s+([^,]+)/g;
     const platosParseados = [];
     const descripcionesPlatos = [];
@@ -401,12 +365,11 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
         Cantidad: cantidad,
         platos: {
           Descripcion: descripcion,
-          CategoriaID: 1, // Valor por defecto, se actualizará con datos reales
+          CategoriaID: 1,
         },
       });
     }
 
-    // Obtener categorías reales desde la base de datos
     const categoriasMap = await obtenerCategoriasPlatos(descripcionesPlatos);
 
     platosParseados.forEach((plato) => {
@@ -416,10 +379,8 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
       }
     });
 
-    // Ordenar platos poniendo caldos (CategoriaID = 4) primero
     const platosOrdenados = orderPlatosWithCaldosFirst(platosParseados);
 
-    // Imprimir solo los platos nuevos en formato de columnas
     printer.setTextSize(1, 2);
     printer.alignLeft();
     printer.bold(true);
@@ -429,8 +390,7 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
         detalle.platos?.Descripcion || "Producto no encontrado";
       const cantidad = detalle.Cantidad || 0;
 
-      // Formato de columnas: cantidad justificada a la izquierda, descripción después
-      const cantidadStr = `${cantidad}x`.padEnd(4); // 4 espacios para la cantidad
+      const cantidadStr = `${cantidad}x`.padEnd(4);
       printer.println(`${cantidadStr}${descripcion}`);
     });
 
@@ -438,7 +398,6 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
     printer.setTextNormal();
   }
 
-  // Instrucciones - extraer y mostrar el comentario del usuario para los platos nuevos
   const comentarioUsuario = extraerComentarioUsuario(comanda.Comentario);
 
   if (comentarioUsuario && comentarioUsuario.trim() !== "") {
@@ -458,18 +417,15 @@ async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
   printer.println(`Impreso: ${new Date().toLocaleTimeString()}`);
 }
 
-// Función auxiliar para extraer solo el comentario del usuario
 function extraerComentarioUsuario(comentarioCompleto) {
   if (!comentarioCompleto) return "";
 
-  // Buscar si hay un comentario después del "|"
   const match = comentarioCompleto.match(/\|\s*(.+)$/);
   let resultado = match ? match[1].trim() : "";
-  
+
   return resultado;
 }
 
-// Función auxiliar para imprimir cabecera común
 function imprimirCabeceraComanda(printer, comanda, titulo) {
   printer.alignCenter();
   printer.bold(true);
@@ -485,43 +441,39 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
     printer.println(
       `Fecha: ${fechaPedido.toLocaleDateString()} - Hora: ${fechaPedido.toLocaleTimeString()}`
     );
-    const mozoNombre = comanda.pedido.empleados?.Nombre || comanda.pedido.MozoNombre || comanda.pedido.Mozo || null;
+    const mozoNombre =
+      comanda.pedido.empleados?.Nombre ||
+      comanda.pedido.MozoNombre ||
+      comanda.pedido.Mozo ||
+      null;
     printer.newLine();
 
     let mesasTexto = "N/A";
-    // Determinar si es pedido para llevar
-    // 1. Si viene marcado explícitamente como ParaLlevar
     if (comanda.pedido.ParaLlevar === true) {
       mesasTexto = "PARA LLEVAR";
-    } 
-    // 2. Si no tiene mesas asignadas o están vacías (pedidos para llevar puros)
-    else if (
-      !comanda.pedido.pedido_mesas || 
+    } else if (
+      !comanda.pedido.pedido_mesas ||
       comanda.pedido.pedido_mesas.length === 0
     ) {
       mesasTexto = "PARA LLEVAR";
-    }
-    // 3. Si tiene mesas, revisar cuáles son
-    else if (Array.isArray(comanda.pedido.pedido_mesas)) {
+    } else if (Array.isArray(comanda.pedido.pedido_mesas)) {
       const numerosMesa = comanda.pedido.pedido_mesas
         .map((pm) => pm.mesas?.NumeroMesa)
         .filter((num) => num !== null && num !== undefined);
 
       if (numerosMesa.length > 0) {
         if (numerosMesa.includes(0)) {
-          mesasTexto = "PARA LLEVAR"; // mesa 0 = para llevar
+          mesasTexto = "PARA LLEVAR";
         } else {
           mesasTexto = numerosMesa.join(", ");
         }
       } else {
-        // Si pedido_mesas existe pero no tiene números válidos = para llevar
         mesasTexto = "PARA LLEVAR";
       }
     }
 
     printer.setTextSize(1, 1);
     printer.bold(true);
-    // Construir línea combinada Mesa(s) + Mozo (si existe)
     if (mesasTexto === "PARA LLEVAR") {
       if (mozoNombre) {
         printer.println(`PARA LLEVAR | Mozo: ${mozoNombre}`);
@@ -540,13 +492,83 @@ function imprimirCabeceraComanda(printer, comanda, titulo) {
   }
 }
 
+// --- NUEVA FUNCIÓN ---
+async function imprimirReporteAuditoria(printer) {
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) return;
+
+  const { start, end } = obtenerRangoDiaActual();
+
+  const { data: auditoriaData, error: auditoriaError } = await supabaseClient
+    .from("auditoria")
+    .select(
+      `
+      *,
+      empleado:empleados ( Nombre )
+    `
+    )
+    .gte("fechaAccion", start.toISOString())
+    .lte("fechaAccion", end.toISOString())
+    .eq("accion", "CANCELACION_PEDIDO")
+    .order("fechaAccion", { ascending: false });
+
+  if (auditoriaError) {
+    console.error(
+      "Error al obtener registros de auditoría:",
+      auditoriaError.message
+    );
+    return;
+  }
+
+  if (!auditoriaData || auditoriaData.length === 0) {
+    printer.println("Sin cancelaciones registradas hoy.");
+    return;
+  }
+
+  printer.newLine();
+  printer.alignCenter();
+  printer.bold(true);
+  printer.println("!!! ATENCION: PEDIDOS CANCELADOS HOY !!!");
+  printer.bold(false);
+  printer.drawLine();
+
+  for (const registro of auditoriaData) {
+    printer.alignLeft();
+    printer.bold(true);
+    printer.println(
+      `ALERTA: ${registro.nivelAlerta} | Pedido #${registro.pedidoId}`
+    );
+    printer.bold(false);
+
+    const fechaCreacion = new Date(registro.fechaCreacion);
+    const fechaAccion = new Date(registro.fechaAccion);
+
+    printer.println(`  Creado : ${fechaCreacion.toLocaleTimeString()}`);
+    printer.println(`  Cancel.: ${fechaAccion.toLocaleTimeString()}`);
+    printer.println(`  Tiempo : ${registro.tiempoTranscurrido} min.`);
+    printer.println(
+      `  Total  : S/ ${Number(registro.detalles.total).toFixed(2)}`
+    );
+    printer.println(`  Mozo   : ${registro.detalles.mozoCreador || "N/A"}`);
+    printer.println(
+      `  Canceló: ${registro.empleado?.Nombre || "ID " + registro.usuarioId}`
+    );
+    printer.println("  Platos:");
+
+    registro.detalles.detalles.forEach((d) => {
+      printer.println(`    - ${d.cantidad}x ${d.plato}`);
+    });
+
+    printer.drawLine();
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 500,
     height: 650,
     icon: path.join(__dirname, "print.ico"),
     webPreferences: {
-      // Corregido: había espacios sobrantes en el nombre del archivo de preload que impedían su carga
       preload: path.join(__dirname, "preload.js"),
     },
   });
@@ -695,11 +717,26 @@ ipcMain.on("relaunch-app", () => {
   app.exit();
 });
 
-// Utilidad para obtener el rango (inicio y fin) del día actual en hora local
 function obtenerRangoDiaActual() {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+  const end = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+    999
+  );
   return { start, end };
 }
 
@@ -715,15 +752,23 @@ ipcMain.handle("print-daily-report", async () => {
   const endISO = end.toISOString();
 
   try {
-    sendToWindow("update-status", { printer: "printing", message: "Generando reporte diario..." });
+    sendToWindow("update-status", {
+      printer: "printing",
+      message: "Generando reporte diario...",
+    }); // --- CORRECCIÓN DEL CÁLCULO TOTAL --- // 1. Obtener pedidos pagados del día con sus detalles
 
-    // 1. Obtener pedidos del día (cerrados -> Estado = false) con montos y tipo de pago
     const { data: pedidosData, error: pedidosError } = await supabaseClient
       .from("pedidos")
-      .select("PedidoID, Total, TipoPago, Estado, Fecha")
+      .select(
+        `
+        PedidoID, 
+        TipoPago, 
+        detallepedidos ( Cantidad, PrecioUnitario )
+        `
+      )
       .gte("Fecha", startISO)
       .lte("Fecha", endISO)
-      .eq("Estado", false); // siguiendo la lógica del dashboard (Estado false = cerrado)
+      .eq("Estado", false);
 
     if (pedidosError) {
       throw new Error(`Error consultando pedidos: ${pedidosError.message}`);
@@ -733,38 +778,42 @@ ipcMain.handle("print-daily-report", async () => {
     let efectivo = 0;
     let yape = 0;
     let pos = 0;
+    const pedidoIds = []; // 2. Recalcular el total de cada pedido y agregarlo a los contadores
 
-    const pedidoIds = [];
     (pedidosData || []).forEach((p) => {
-      const monto = Number(p.Total) || 0;
-      totalGeneral += monto;
+      const verdaderoTotal = p.detallepedidos.reduce((acc, detalle) => {
+        return acc + Number(detalle.PrecioUnitario) * detalle.Cantidad;
+      }, 0);
+      totalGeneral += verdaderoTotal;
       switch (p.TipoPago) {
         case 1:
-          efectivo += monto;
+          efectivo += verdaderoTotal;
           break;
         case 2:
-          yape += monto;
+          yape += verdaderoTotal;
           break;
         case 3:
-          pos += monto;
+          pos += verdaderoTotal;
           break;
       }
       pedidoIds.push(p.PedidoID);
-    });
-
-    // 2. Obtener detalle de platos para top 3
-    let topPlatos = [];
+    }); // --- FIN DE LA CORRECCIÓN --- // 3. Obtener detalle de TODOS los platos vendidos
+    let platosVendidos = []; // <-- CAMBIO: Cambiado el nombre de la variable para mayor claridad
     if (pedidoIds.length > 0) {
       const { data: detallesData, error: detallesError } = await supabaseClient
         .from("detallepedidos")
-        .select(`PedidoID, PlatoID, Cantidad, platos:platos!detallepedidos_PlatoID_fkey(Descripcion)`) // alias similar al resto del código
+        .select(
+          `PedidoID, PlatoID, Cantidad, platos:platos!detallepedidos_PlatoID_fkey(Descripcion)`
+        )
         .in("PedidoID", pedidoIds);
 
       if (detallesError) {
-        throw new Error(`Error consultando detalle de pedidos: ${detallesError.message}`);
+        throw new Error(
+          `Error consultando detalle de pedidos: ${detallesError.message}`
+        );
       }
 
-      const acumulado = new Map(); // PlatoID -> { descripcion, cantidad }
+      const acumulado = new Map();
       (detallesData || []).forEach((d) => {
         const key = d.PlatoID;
         const desc = d.platos?.Descripcion || "Desconocido";
@@ -775,12 +824,14 @@ ipcMain.handle("print-daily-report", async () => {
         acumulado.get(key).cantidad += cant;
       });
 
-      topPlatos = Array.from(acumulado.values())
-        .sort((a, b) => b.cantidad - a.cantidad)
-        .slice(0, 3);
-    }
+      // --- CAMBIO PRINCIPAL ---
+      // Se elimina .slice(0, 3) para obtener todos los platos.
+      // La lista seguirá ordenada de mayor a menor cantidad vendida.
+      platosVendidos = Array.from(acumulado.values()).sort(
+        (a, b) => b.cantidad - a.cantidad
+      );
+    } // 4. Preparar impresión (sin cambios en la estructura)
 
-    // 3. Preparar impresión
     const printerIp = store.get("printerIp", DEFAULT_PRINTER_IP);
     if (!printerIp) {
       throw new Error("IP de impresora no configurada");
@@ -799,7 +850,7 @@ ipcMain.handle("print-daily-report", async () => {
     printer.bold(true);
     printer.println("REPORTE DIARIO");
     printer.bold(false);
-    printer.println(`${start.toLocaleDateString()} (${start.toLocaleDateString() === end.toLocaleDateString() ? "Día" : "Rango"})`);
+    printer.println(`${start.toLocaleDateString()}`);
     printer.drawLine();
 
     printer.alignLeft();
@@ -811,22 +862,24 @@ ipcMain.handle("print-daily-report", async () => {
     printer.bold(true);
     printer.println("Por Método de Pago:");
     printer.bold(false);
-    printer.println(`  Efectivo: S/ ${efectivo.toFixed(2)}`);
-    printer.println(`  Yape    : S/ ${yape.toFixed(2)}`);
-    printer.println(`  POS     : S/ ${pos.toFixed(2)}`);
+    printer.println(`  Efectivo: S/ ${efectivo.toFixed(2)}`);
+    printer.println(`  Yape    : S/ ${yape.toFixed(2)}`);
+    printer.println(`  POS     : S/ ${pos.toFixed(2)}`);
     printer.newLine();
 
+    // --- CAMBIO EN LA IMPRESIÓN ---
     printer.bold(true);
-    printer.println("Top 3 Platos");
+    printer.println("PLATOS VENDIDOS DEL DIA"); // <-- CAMBIO: Título actualizado
     printer.bold(false);
-    if (topPlatos.length === 0) {
-      printer.println("  (Sin ventas registradas)");
+    if (platosVendidos.length === 0) {
+      printer.println("  (Sin ventas registradas)");
     } else {
-      topPlatos.forEach((plato, idx) => {
-        printer.println(`  ${idx + 1}) ${plato.cantidad}x ${plato.descripcion}`);
+      platosVendidos.forEach((plato) => {
+        // <-- CAMBIO: Se usa la nueva variable y se imprime cada elemento
+        printer.println(`  - ${plato.cantidad}x ${plato.descripcion}`); // Formato un poco más limpio para una lista larga
       });
-    }
-
+    } // --- INTEGRACIÓN DEL REPORTE DE AUDITORÍA ---
+    await imprimirReporteAuditoria(printer); // --- FIN DE LA INTEGRACIÓN ---
     printer.drawLine();
     printer.alignCenter();
     printer.println(`Impreso: ${new Date().toLocaleString()}`);
@@ -834,11 +887,17 @@ ipcMain.handle("print-daily-report", async () => {
 
     await printer.execute();
 
-    sendToWindow("update-status", { printer: "success", message: "Reporte diario impreso" });
+    sendToWindow("update-status", {
+      printer: "success",
+      message: "Reporte diario impreso",
+    });
     return { success: true };
   } catch (error) {
     console.error("Error al generar/imprimir reporte diario:", error.message);
-    sendToWindow("update-status", { printer: "error", message: `Error reporte: ${error.message}` });
+    sendToWindow("update-status", {
+      printer: "error",
+      message: `Error reporte: ${error.message}`,
+    });
     throw error;
   }
 });
@@ -1001,7 +1060,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       timeout: 3000,
     });
 
-    // Determinar el tipo de comanda para REIMPRESIÓN e imprimir usando la función especializada
     if (
       comanda.Comentario &&
       comanda.Comentario.includes("REIMPRESIÓN - Solo:")
@@ -1009,7 +1067,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       console.log(
         `🖨️ Reimprimiendo comanda de REIMPRESIÓN ESPECÍFICA #${comanda.ComandaID}`
       );
-      // Para reimpresiones, usamos la cabecera especial de reimpresión
       printer.alignCenter();
       printer.bold(true);
       printer.println("REIMPRESIÓN DE COMANDA");
@@ -1017,7 +1074,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       printer.println(`Comanda #${comanda.ComandaID}`);
       printer.drawLine();
 
-      // Agregar fecha de reimpresión
       if (comanda.pedido) {
         printer.alignLeft();
         const fechaOriginal = new Date(comanda.pedido.Fecha);
@@ -1029,7 +1085,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
           `Reimpresión: ${fechaReimpresion.toLocaleDateString()} ${fechaReimpresion.toLocaleTimeString()}`
         );
         const mozoNombre = comanda.pedido.empleados?.Nombre || null;
-        // Construcción de mesas / para llevar
         let mesasTexto = "N/A";
         if (comanda.pedido.ParaLlevar === true) {
           mesasTexto = "PARA LLEVAR";
@@ -1051,15 +1106,20 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         printer.newLine();
         printer.bold(true);
         if (mesasTexto === "PARA LLEVAR") {
-          printer.println(mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR");
+          printer.println(
+            mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR"
+          );
         } else {
-          printer.println(mozoNombre ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}` : `MESA(S): ${mesasTexto}`);
+          printer.println(
+            mozoNombre
+              ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}`
+              : `MESA(S): ${mesasTexto}`
+          );
         }
         printer.bold(false);
         printer.drawLine();
       }
 
-      // Usar la función especializada pero sin la cabecera normal
       await imprimirReimpresionEspecifica(printer, comanda, true);
     } else if (
       comanda.Comentario &&
@@ -1068,7 +1128,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       console.log(
         `🖨️ Reimprimiendo comanda de NUEVOS PLATOS #${comanda.ComandaID}`
       );
-      // Para reimpresiones de nuevos platos, usar cabecera especial
       printer.alignCenter();
       printer.bold(true);
       printer.println("REIMPRESIÓN DE COMANDA");
@@ -1076,7 +1135,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       printer.println(`Comanda #${comanda.ComandaID}`);
       printer.drawLine();
 
-      // Agregar fecha de reimpresión
       if (comanda.pedido) {
         printer.alignLeft();
         const fechaOriginal = new Date(comanda.pedido.Fecha);
@@ -1109,9 +1167,15 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         printer.newLine();
         printer.bold(true);
         if (mesasTexto === "PARA LLEVAR") {
-          printer.println(mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR");
+          printer.println(
+            mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR"
+          );
         } else {
-          printer.println(mozoNombre ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}` : `MESA(S): ${mesasTexto}`);
+          printer.println(
+            mozoNombre
+              ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}`
+              : `MESA(S): ${mesasTexto}`
+          );
         }
         printer.bold(false);
         printer.drawLine();
@@ -1120,7 +1184,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       await imprimirNuevosPlatos(printer, comanda, true);
     } else {
       console.log(`🖨️ Reimprimiendo comanda NORMAL #${comanda.ComandaID}`);
-      // Para reimpresiones normales, usar cabecera especial
       printer.alignCenter();
       printer.bold(true);
       printer.println("REIMPRESIÓN DE COMANDA");
@@ -1128,7 +1191,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       printer.println(`Comanda #${comanda.ComandaID}`);
       printer.drawLine();
 
-      // Agregar fecha de reimpresión
       if (comanda.pedido) {
         printer.alignLeft();
         const fechaOriginal = new Date(comanda.pedido.Fecha);
@@ -1161,9 +1223,15 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
         printer.newLine();
         printer.bold(true);
         if (mesasTexto === "PARA LLEVAR") {
-          printer.println(mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR");
+          printer.println(
+            mozoNombre ? `PARA LLEVAR | Mozo: ${mozoNombre}` : "PARA LLEVAR"
+          );
         } else {
-          printer.println(mozoNombre ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}` : `MESA(S): ${mesasTexto}`);
+          printer.println(
+            mozoNombre
+              ? `MESA(S): ${mesasTexto} | Mozo: ${mozoNombre}`
+              : `MESA(S): ${mesasTexto}`
+          );
         }
         printer.bold(false);
         printer.drawLine();
@@ -1172,7 +1240,6 @@ ipcMain.handle("reprint-command", async (event, commandId) => {
       await imprimirComandaNormal(printer, comanda, true);
     }
 
-    // Para reimpresiones, agregar marca especial al final
     printer.drawLine();
     printer.alignCenter();
     printer.println("REIMPRESIÓN");
@@ -1255,13 +1322,12 @@ async function checkForPrintJobs() {
     console.log(
       `🔍 Encontradas ${comandas.length} comanda(s) pendientes. Procesando...`
     );
-    
-    // Log detallado de cada comanda encontrada
-    comandas.forEach(comanda => {
+
+    comandas.forEach((comanda) => {
       console.log(`📋 Comanda #${comanda.ComandaID}:`, {
         Comentario: comanda.Comentario,
         FechaCreacion: comanda.FechaCreacion,
-        PedidoID: comanda.pedido?.PedidoID
+        PedidoID: comanda.pedido?.PedidoID,
       });
     });
     sendToWindow("update-status", {
@@ -1275,15 +1341,17 @@ async function checkForPrintJobs() {
     }
 
     for (const comanda of comandas) {
-      // Verificar si esta comanda ya está en proceso para evitar duplicados
       if (comandasEnProceso.has(comanda.ComandaID)) {
-        console.log(`⏭️ Saltando comanda #${comanda.ComandaID} - ya está en proceso`);
+        console.log(
+          `⏭️ Saltando comanda #${comanda.ComandaID} - ya está en proceso`
+        );
         continue;
       }
 
-      // Marcar como en proceso
       comandasEnProceso.add(comanda.ComandaID);
-      console.log(`🔄 Procesando comanda #${comanda.ComandaID} (en proceso: ${comandasEnProceso.size})`);
+      console.log(
+        `🔄 Procesando comanda #${comanda.ComandaID} (en proceso: ${comandasEnProceso.size})`
+      );
 
       try {
         const printer = new ThermalPrinter({
@@ -1295,7 +1363,6 @@ async function checkForPrintJobs() {
           timeout: 3000,
         });
 
-        // Determinar el tipo de comanda e imprimir usando la función especializada
         if (
           comanda.Comentario &&
           comanda.Comentario.includes("REIMPRESIÓN - Solo:")
@@ -1346,9 +1413,10 @@ async function checkForPrintJobs() {
           message: `Error imprimiendo comanda #${comanda.ComandaID}: ${printError.message}`,
         });
       } finally {
-        // Siempre limpiar el control de duplicados, sin importar si fue exitoso o falló
         comandasEnProceso.delete(comanda.ComandaID);
-        console.log(`🧹 Liberando comanda #${comanda.ComandaID} del control de duplicados (restantes: ${comandasEnProceso.size})`);
+        console.log(
+          `🧹 Liberando comanda #${comanda.ComandaID} del control de duplicados (restantes: ${comandasEnProceso.size})`
+        );
       }
     }
 

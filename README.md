@@ -1,107 +1,102 @@
-# Puente Impresión Campomar
+# Puente de Impresión Campomar
+### 📝 Descripción del Proyecto
 
-Puente Impresión Campomar is a desktop application built with **Electron** that acts as a bridge between a web application and a thermal ticket printer. It creates a local server, exposes it to the internet using **Ngrok**, and allows receiving print orders from a public URL.
+Este proyecto fue desarrollado para solucionar la necesidad de imprimir comandas y recibos de venta desde un sistema centralizado directamente en la cocina o en el área de facturación de un restaurante. La aplicación proporciona una solución estable y confiable que se ejecuta de forma local en un ordenador con acceso a la impresora térmica, garantizando que no se pierdan pedidos y que el flujo de trabajo en la cocina sea eficiente.
 
-## About The Project
-
-This project was developed to solve the need for printing sales receipts or orders from a web application (like a point of sale or an e-commerce site) directly to a thermal printer connected to a local network. The application provides a secure and stable public endpoint through Ngrok, so your web application can send print jobs from anywhere.
-
-### Built With
+### Tecnologías Utilizadas
 
 * [Electron](https://www.electronjs.org/)
-* [Express.js](https://expressjs.com/)
-* [Ngrok](https://ngrok.com/)
-* [Node-Thermal-Printer](https://github.com/Klemen1337/node-thermal-printer)
+* [Supabase](https://supabase.com/)
+* [Node.js](https://nodejs.org/)
+* [CSS3](https://developer.mozilla.org/es/docs/Web/CSS)
+* [HTML5](https://developer.mozilla.org/es/docs/Web/HTML)
+* [JavaScript](https://developer.mozilla.org/es/docs/Web/JavaScript)
 
-## Features
+### ✨ Características Principales
 
-* **Local Print Server**: Runs an Express server to receive print requests.
-* **Ngrok Tunneling**: Automatically creates a public URL with Ngrok to receive requests from the internet.
-* **Simple User Interface**: Shows the status of the server, printer, and the public URL.
-* **Secure Configuration**: Protects the configuration section with a password.
-* **Persistent Configuration**: Saves the printer's IP address and the Ngrok token locally.
+* **Servidor de Impresión Local:** La aplicación monitorea constantemente la base de datos de Supabase en busca de nuevas comandas pendientes de impresión.
+* **Interfaz de Usuario Sencilla:** Muestra el estado de la conexión con la impresora, las últimas comandas impresas y permite realizar acciones rápidas.
+* **Configuración Segura:** La sección de configuración, donde se introduce la dirección IP de la impresora, está protegida por una contraseña para evitar cambios no autorizados.
+* **Configuración Persistente:** Guarda la dirección IP de la impresora de forma local, por lo que no es necesario volver a configurarla cada vez que se inicia la aplicación.
+* **Funcionalidades Adicionales:**
+    * **Reimpresión de Comandas:** Permite reimprimir cualquiera de las últimas comandas con un solo clic.
+    * **Reporte Diario:** Genera e imprime un reporte de ventas del día con un resumen de los métodos de pago y los platos más vendidos.
+    * **Lógica de Impresión Inteligente:** La aplicación es capaz de diferenciar entre comandas normales, comandas con platos añadidos y reimpresiones específicas, adaptando el formato de impresión a cada caso.
 
-## Getting Started
+## 🚀 Cómo Empezar
 
-To get a local copy up and running, follow these simple steps.
+Para poner en marcha una copia local de la aplicación, sigue estos sencillos pasos.
 
-### Prerequisites
+### Prerrequisitos
 
-You need to have Node.js and npm installed on your system.
+Necesitarás tener Node.js y npm instalados en tu sistema.
+
 * npm
     ```sh
     npm install npm@latest -g
     ```
 
-### Installation
+### Instalación
 
-1.  Clone the repository:
+1.  Clona el repositorio:
     ```sh
-    git clone [https://github.com/your_username/AppPuenteCampoMar.git](https://github.com/your_username/AppPuenteCampoMar.git)
+    git clone [https://github.com/santi1475/apppuentecampomar.git](https://github.com/santi1475/apppuentecampomar.git)
     ```
-2.  Navigate to the project directory:
+2.  Navega al directorio del proyecto:
     ```sh
     cd AppPuenteCampoMar
     ```
-3.  Install NPM packages:
+3.  Instala los paquetes de NPM:
     ```sh
     npm install
     ```
-    
-## Configuration
 
-Before running the application, you need to set up your environment variables.
+## ⚙️ Configuración
 
-1.  Create a `.env` file in the root of the project. This file is ignored by Git, so your sensitive data will remain private.
+Antes de ejecutar la aplicación, es necesario configurar las variables de entorno.
+
+1.  Crea un archivo `.env` en la raíz del proyecto.
     ```
     touch .env
     ```
-
-2.  Add the following variables to your `.env` file. These will be used as default values if they are not configured in the application's UI:
+2.  Añade las siguientes variables a tu archivo `.env`:
     ```env
-    # The IP address of your thermal printer on the local network
-    PRINTER_IP=192.168.1.100
+    # URL de tu proyecto de Supabase
+    SUPABASE_URL=tu_url_de_supabase_aqui
 
-    # Your Ngrok authentication token (get it from [https://dashboard.ngrok.com/get-started/your-authtoken](https://dashboard.ngrok.com/get-started/your-authtoken))
-    NGROK_TOKEN=your_ngrok_auth_token_here
+    # Clave de API (pública) de tu proyecto de Supabase
+    SUPABASE_KEY=tu_api_key_de_supabase_aqui
 
-    # A secret password to unlock the configuration section in the app
-    SECRET_PASSWORD=your_secret_password
+    # Una contraseña secreta para desbloquear la configuración en la aplicación
+    SECRET_PASSWORD=tu_contraseña_secreta
     ```
+    **Nota:** También puedes configurar la dirección IP de la impresora directamente en la interfaz de la aplicación después de desbloquear la sección de configuración.
 
-    **Note:** You can also set the Printer IP and Ngrok Token directly in the application's UI after unlocking the configuration section.
+## 📦 Uso
 
-## Usage
-
-To run the application in development mode, use the following command:
+Para ejecutar la aplicación en modo de desarrollo, utiliza el siguiente comando:
 
 ```sh
 npm start
 ```
-This will launch the Electron application. The main window will show you the status of the local server and the public URL generated by Ngrok that you can use in your web application to send print requests.
+Esto lanzará la aplicación de **Electron**. La ventana principal te mostrará el estado de la impresora y las últimas comandas. Desde ahí podrás gestionar la configuración y las funciones de impresión.
 
-To send a print job, make a POST request to the /print endpoint of your public Ngrok URL with a JSON body like this:
+Para construir la aplicación y generar un instalador para Windows, utiliza el siguiente comando:
 
 ```sh
-{
-  "orderDetails": "Your ticket content here."
-}
+npm run dist
 ```
-## Contributing
+---
 
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
+## Contacto
 
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
+<div align="center">
 
-  1. Fork the Project
+<a href="https://www.linkedin.com/in/santiago-g-v/">
+  <img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn"/>
+</a>
+<a href="mailto:santiguz1475@gmail.com">
+  <img src="https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white" alt="Gmail"/>
+</a>
 
-  2. Create your Feature Branch `(git checkout -b feature/AmazingFeature)`
-
-  3. Commit your Changes `(git commit -m 'Add some AmazingFeature')`
-
-  4. Push to the Branch `(git push origin feature/AmazingFeature)`
-
-  5. Open a Pull Request
-
-## License
-  Distributed under the ISC License. See `LICENSE` for more information.
+</div>

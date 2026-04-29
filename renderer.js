@@ -6,6 +6,7 @@ const saveButton = document.getElementById('save-button');
 const testPrintButton = document.getElementById('test-print-button');
 const refreshButton = document.getElementById('refresh-button'); 
 const dailyReportButton = document.getElementById('daily-report-button');
+const auditReportButton = document.getElementById('audit-report-button'); // <-- NUEVA LÍNEA
 const closeSettingsButton = document.getElementById('close-settings-button'); 
 const refreshOrdersButton = document.getElementById('refresh-orders');
 const latestOrdersContainer = document.getElementById('latest-orders');
@@ -52,6 +53,15 @@ dailyReportButton.addEventListener('click', async () => {
         await window.electronAPI.printDailyReport();
     } catch (e) {
         alert('Error generando reporte diario');
+        console.error(e);
+    }
+});
+
+auditReportButton.addEventListener('click', async () => {
+    try {
+        await window.electronAPI.printAuditReport();
+    } catch (e) {
+        alert('Error generando reporte de auditoría');
         console.error(e);
     }
 });

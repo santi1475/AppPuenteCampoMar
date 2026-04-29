@@ -563,6 +563,205 @@ async function imprimirReporteAuditoria(printer) {
   }
 }
 
+ipcMain.handle("print-audit-report", async () => {
+  const supabaseClient = getSupabaseClient();
+  if (!supabaseClient) throw new Error("No se pudo inicializar Supabase");
+
+  const { start, end } = obtenerRangoDiaActual();
+  
+  try {
+    sendToWindow("update-status", {
+      printer: "printing",
+      message: "Generando auditoría detallada...",
+    });
+
+    // 1. Consultar Eliminaciones (Aprovechando FK a pedidos, empleados y mesas)
+    // Traemos información del pedido para saber si era para llevar o su total.
+    const { data: eliminacionesData, error: elimError } = await supabaseClient
+      .from("auditoria_eliminaciones")
+      .select(`
+        *,
+        empleados ( Nombre, DNI ),
+        mesas ( NumeroMesa ),
+        pedidos ( Total, ParaLlevar, Estado )
+      `)
+      .gte("Fecha", start.toISOString())
+      .lte("Fecha", end.toISOString())
+      .order("Fecha", { ascending: false });
+
+    if (elimError) throw new Error(`Error eliminaciones: ${elimError.message}`);
+
+    // 2. Consultar Auditoría General (Aprovechando FK a empleados)
+    const { data: auditoriaData, error: audError } = await supabaseClient
+      .from("auditoria")
+      .select(`
+        *,
+        empleados ( Nombre, TipoEmpleadoID )
+      `)
+      .gte("fechaAccion", start.toISOString())
+      .lte("fechaAccion", end.toISOString())
+      .order("fechaAccion", { ascending: false });
+
+    if (audError) throw new Error(`Error auditoría: ${audError.message}`);
+
+    // 3. Preparar la impresora
+    const printerIp = store.get("printerIp", DEFAULT_PRINTER_IP);
+    const printer = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: `tcp://${printerIp}`,
+      characterSet: CharacterSet.PC850_MULTILINGUAL,
+      removeSpecialCharacters: false,
+      lineCharacter: "-",
+      timeout: 4000,
+    });
+
+    // --- OPCIONES DE FECHA/HORA (ZONA LIMA) ---
+    const timeOptions = { timeZone: 'America/Lima', hour12: true, hour: '2-digit', minute:'2-digit' };
+    const dateOptions = { timeZone: 'America/Lima', day: '2-digit', month: '2-digit', year: 'numeric' };
+
+    // ==========================================
+    // CABECERA DEL REPORTE
+    // ==========================================
+    printer.alignCenter();
+    printer.setTextSize(1, 1);
+    printer.bold(true);
+    printer.println("REPORTE DE AUDITORIA Y CONTROL");
+    printer.setTextNormal();
+    printer.bold(false);
+    printer.println(`Fecha de emisión: ${new Date().toLocaleDateString('es-PE', dateOptions)}`);
+    printer.println(`Hora de emisión: ${new Date().toLocaleTimeString('es-PE', timeOptions)}`);
+    printer.drawLine();
+
+    // ==========================================
+    // SECCIÓN 1: ELIMINACIONES Y MERMAS
+    // ==========================================
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("--- PLATOS ELIMINADOS ---");
+    printer.bold(false);
+    printer.drawLine();
+
+    let totalPerdidoGlobal = 0;
+    let totalPlatosEliminados = 0;
+
+    if (!eliminacionesData || eliminacionesData.length === 0) {
+      printer.alignLeft();
+      printer.println(" No se registraron eliminaciones hoy.");
+    } else {
+      eliminacionesData.forEach((elim) => {
+        totalPerdidoGlobal += Number(elim.TotalPerdido);
+        totalPlatosEliminados += Number(elim.CantidadEliminada);
+        
+        const horaLocal = new Date(elim.Fecha).toLocaleTimeString('es-PE', timeOptions);
+        const empleado = elim.empleados?.Nombre || `Usuario ID:${elim.EmpleadoID}`;
+        
+        // Determinar ubicación (Mesa o Llevar) apoyándonos en la relación con pedidos
+        let ubicacion = "Desconocida";
+        if (elim.pedidos?.ParaLlevar) ubicacion = "PARA LLEVAR";
+        else if (elim.mesas) ubicacion = `MESA ${elim.mesas.NumeroMesa}`;
+        else ubicacion = "PARA LLEVAR"; // Fallback
+
+        // Bloque de impresión por registro
+        printer.alignLeft();
+        printer.bold(true);
+        printer.println(`[${horaLocal}] Pedido #${elim.PedidoID} | ${ubicacion}`);
+        printer.bold(false);
+        printer.println(`Empleado: ${empleado}`);
+        printer.println(`Acción  : ${elim.TipoAccion}`);
+        
+        // Detalle financiero y logístico
+        printer.println(`Producto: ${elim.CantidadEliminada}x ${elim.DescripcionPlato}`);
+        printer.println(`Precio U: S/ ${Number(elim.PrecioUnitario).toFixed(2)} | Subtotal: S/ ${Number(elim.TotalPerdido).toFixed(2)}`);
+        
+        if (elim.EstabaImpreso) {
+            printer.bold(true);
+            printer.println(`ALERTA  : El plato YA HABIA SIDO IMPRESO en cocina.`);
+            printer.bold(false);
+        } else {
+            printer.println(`Estado  : Eliminado antes de imprimir (Sin merma en cocina).`);
+        }
+        printer.drawLine();
+      });
+    }
+    
+    // Resumen de eliminaciones
+    printer.alignRight();
+    printer.bold(true);
+    printer.println(`Platos Eliminados: ${totalPlatosEliminados}`);
+    printer.println(`TOTAL DINERO PERDIDO: S/ ${totalPerdidoGlobal.toFixed(2)}`);
+    printer.bold(false);
+    printer.drawLine();
+
+    // ==========================================
+    // SECCIÓN 2: ACCIONES DEL SISTEMA (Auditoría)
+    // ==========================================
+    printer.alignCenter();
+    printer.bold(true);
+    printer.println("--- ALERTAS DEL SISTEMA ---");
+    printer.bold(false);
+    printer.drawLine();
+
+    if (!auditoriaData || auditoriaData.length === 0) {
+      printer.alignLeft();
+      printer.println(" No se registraron alertas hoy.");
+    } else {
+      auditoriaData.forEach((aud) => {
+        const horaLocal = new Date(aud.fechaAccion).toLocaleTimeString('es-PE', timeOptions);
+        const empleado = aud.empleados?.Nombre || `Usuario ID:${aud.usuarioId}`;
+
+        printer.alignLeft();
+        printer.bold(true);
+        printer.println(`[${horaLocal}] Pedido #${aud.pedidoId} | Nivel: ${aud.nivelAlerta}`);
+        printer.bold(false);
+        
+        printer.println(`Empleado : ${empleado}`);
+        printer.println(`Acción   : ${aud.accion}`);
+        printer.println(`T. Activo: ${aud.tiempoTranscurrido} minutos desde creación.`);
+        
+        if (aud.justificacion && aud.justificacion.trim() !== "") {
+            printer.println(`Motivo   : ${aud.justificacion}`);
+        }
+
+        // Desglosar el JSONB 'detalles' si existe
+        if (aud.detalles) {
+            if (aud.detalles.total) {
+                printer.println(`Total Pedido: S/ ${Number(aud.detalles.total).toFixed(2)}`);
+            }
+            if (aud.detalles.detalles && Array.isArray(aud.detalles.detalles)) {
+                printer.println("Contenido del pedido afectado:");
+                aud.detalles.detalles.forEach(d => {
+                    printer.println(`  - ${d.cantidad}x ${d.plato}`);
+                });
+            }
+        }
+        printer.drawLine();
+      });
+    }
+
+    // FIN DEL TICKET
+    printer.newLine();
+    printer.alignCenter();
+    printer.println("FIN DEL REPORTE");
+    printer.cut();
+
+    await printer.execute();
+
+    sendToWindow("update-status", {
+      printer: "success",
+      message: "Auditoría impresa exitosamente",
+    });
+    return { success: true };
+
+  } catch (error) {
+    console.error("Error al generar reporte de auditoria:", error.message);
+    sendToWindow("update-status", {
+      printer: "error",
+      message: `Error auditoría: ${error.message}`,
+    });
+    throw error;
+  }
+});
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 500,

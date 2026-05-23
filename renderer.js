@@ -7,6 +7,7 @@ const testPrintButton = document.getElementById('test-print-button');
 const refreshButton = document.getElementById('refresh-button'); 
 const dailyReportButton = document.getElementById('daily-report-button');
 const auditReportButton = document.getElementById('audit-report-button'); // <-- NUEVA LÍNEA
+const waiterReportButton = document.getElementById('waiter-report-button'); // <-- REPORTE POR MOZO
 const closeSettingsButton = document.getElementById('close-settings-button'); 
 const refreshOrdersButton = document.getElementById('refresh-orders');
 const latestOrdersContainer = document.getElementById('latest-orders');
@@ -62,6 +63,15 @@ auditReportButton.addEventListener('click', async () => {
         await window.electronAPI.printAuditReport();
     } catch (e) {
         alert('Error generando reporte de auditoría');
+        console.error(e);
+    }
+});
+
+waiterReportButton.addEventListener('click', async () => {
+    try {
+        await window.electronAPI.printWaiterReport();
+    } catch (e) {
+        alert('Error generando reporte por mozo');
         console.error(e);
     }
 });

@@ -18,4 +18,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   reprintCommand: (commandId) => ipcRenderer.invoke("reprint-command", commandId),
   printDailyReport: () => ipcRenderer.invoke("print-daily-report"),
   printAuditReport: () => ipcRenderer.invoke("print-audit-report"), // <-- NUEVA LÍNEA
+  printWaiterReport: () => ipcRenderer.invoke("print-waiter-report"), // <-- REPORTE POR MOZO
 });

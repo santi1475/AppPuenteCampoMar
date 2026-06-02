@@ -1,94 +1,135 @@
-# Puente de Impresión Campomar
-### 📝 Descripción del Proyecto
+<p align="center">
+  <img src="print.ico" alt="campomar-print-bridge logo" width="100" style="border-radius: 12px;">
+</p>
 
-Este proyecto fue desarrollado para solucionar la necesidad de imprimir comandas y recibos de venta desde un sistema centralizado directamente en la cocina o en el área de facturación de un restaurante. La aplicación proporciona una solución estable y confiable que se ejecuta de forma local en un ordenador con acceso a la impresora térmica, garantizando que no se pierdan pedidos y que el flujo de trabajo en la cocina sea eficiente.
+<h1 align="center">campomar-print-bridge</h1>
 
-### Tecnologías Utilizadas
+<p align="center">
+  <img src="https://img.shields.io/badge/Electron-37-4784F4?logo=electron" alt="Electron 37">
+  &nbsp;
+  <img src="https://img.shields.io/badge/Supabase-v2-3ECF8E?logo=supabase" alt="Supabase v2">
+  &nbsp;
+  <img src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js" alt="Node.js 18+">
+  &nbsp;
+  <img src="https://img.shields.io/badge/JavaScript-ES6-F7DF1E?logo=javascript" alt="JavaScript ES6">
+</p>
 
-* [Electron](https://www.electronjs.org/)
-* [Supabase](https://supabase.com/)
-* [Node.js](https://nodejs.org/)
-* [CSS3](https://developer.mozilla.org/es/docs/Web/CSS)
-* [HTML5](https://developer.mozilla.org/es/docs/Web/HTML)
-* [JavaScript](https://developer.mozilla.org/es/docs/Web/JavaScript)
+<p align="center">
+  A robust local print bridge desktop application to connect remote database events to thermal printers in real-time.<br>
+  Built with Electron and Supabase to power reliable kitchen and receipt ticketing for Campomar restaurant.
+</p>
 
-### ✨ Características Principales
-
-* **Servidor de Impresión Local:** La aplicación monitorea constantemente la base de datos de Supabase en busca de nuevas comandas pendientes de impresión.
-* **Interfaz de Usuario Sencilla:** Muestra el estado de la conexión con la impresora, las últimas comandas impresas y permite realizar acciones rápidas.
-* **Configuración Segura:** La sección de configuración, donde se introduce la dirección IP de la impresora, está protegida por una contraseña para evitar cambios no autorizados.
-* **Configuración Persistente:** Guarda la dirección IP de la impresora de forma local, por lo que no es necesario volver a configurarla cada vez que se inicia la aplicación.
-* **Funcionalidades Adicionales:**
-    * **Reimpresión de Comandas:** Permite reimprimir cualquiera de las últimas comandas con un solo clic.
-    * **Reporte Diario:** Genera e imprime un reporte de ventas del día con un resumen de los métodos de pago y los platos más vendidos.
-    * **Lógica de Impresión Inteligente:** La aplicación es capaz de diferenciar entre comandas normales, comandas con platos añadidos y reimpresiones específicas, adaptando el formato de impresión a cada caso.
-
-## 🚀 Cómo Empezar
-
-Para poner en marcha una copia local de la aplicación, sigue estos sencillos pasos.
-
-### Prerrequisitos
-
-Necesitarás tener Node.js y npm instalados en tu sistema.
-
-* npm
-    ```sh
-    npm install npm@latest -g
-    ```
-
-### Instalación
-
-1.  Clona el repositorio:
-    ```sh
-    git clone [https://github.com/santi1475/apppuentecampomar.git](https://github.com/santi1475/apppuentecampomar.git)
-    ```
-2.  Navega al directorio del proyecto:
-    ```sh
-    cd AppPuenteCampoMar
-    ```
-3.  Instala los paquetes de NPM:
-    ```sh
-    npm install
-    ```
-
-## ⚙️ Configuración
-
-Antes de ejecutar la aplicación, es necesario configurar las variables de entorno.
-
-1.  Crea un archivo `.env` en la raíz del proyecto.
-    ```
-    touch .env
-    ```
-2.  Añade las siguientes variables a tu archivo `.env`:
-    ```env
-    # URL de tu proyecto de Supabase
-    SUPABASE_URL=tu_url_de_supabase_aqui
-
-    # Clave de API (pública) de tu proyecto de Supabase
-    SUPABASE_KEY=tu_api_key_de_supabase_aqui
-
-    # Una contraseña secreta para desbloquear la configuración en la aplicación
-    SECRET_PASSWORD=tu_contraseña_secreta
-    ```
-    **Nota:** También puedes configurar la dirección IP de la impresora directamente en la interfaz de la aplicación después de desbloquear la sección de configuración.
-
-## 📦 Uso
-
-Para ejecutar la aplicación en modo de desarrollo, utiliza el siguiente comando:
-
-```sh
-npm start
-```
-Esto lanzará la aplicación de **Electron**. La ventana principal te mostrará el estado de la impresora y las últimas comandas. Desde ahí podrás gestionar la configuración y las funciones de impresión.
-
-Para construir la aplicación y generar un instalador para Windows, utiliza el siguiente comando:
-
-```sh
-npm run dist
-```
 ---
 
-## Contacto
+## ✨ Key Features
+
+- 🔌 **Real-time Database Connection** — Actively listens to new command (comanda) events from Supabase to trigger local printing instantly.
+- 🖨️ **Smart Print Logic** — Automatically differentiates normal orders, added dishes, and manual reprints, prioritizing dishes like broths/soups (Category ID 4) at the top of the kitchen ticket.
+- 🔑 **Secure Config Portal** — A password-protected local administration panel to prevent unauthorized changes to printer configurations.
+- 💾 **Persistent Configuration** — Printer IP and local settings are securely stored locally via `electron-store` for persistent boots.
+- 📊 **Analytical Reporting** — Generates and prints comprehensive daily sales reports, waiter performance summaries, and cancellation audits directly from the UI.
+- 🔄 **Ticket Reprint Queue** — Maintains a list of recent commands in the UI, enabling instant manual reprint of any ticket with a single click.
+
+---
+
+## 🚀 Quick Start
+
+To set up the print bridge locally on your development system, follow these steps:
+
+### Prerequisites
+
+You need to have **Node.js** (version 18 or higher) and **npm** installed on your system.
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/santi1475/apppuentecampomar.git
+   ```
+
+2. Navigate to the project directory:
+   ```bash
+   cd AppPuenteCampomar
+   ```
+
+3. Install the NPM dependencies:
+   ```bash
+   npm install
+   ```
+
+---
+
+## ⚙️ Configuration
+
+Before running the application, you need to configure the environment variables:
+
+1. Create a `.env` file in the root of the project:
+   ```bash
+   # Windows PowerShell
+   New-Item .env
+   
+   # Or Unix-like bash
+   touch .env
+   ```
+
+2. Configure the following variables in your `.env` file:
+   ```env
+   # Your Supabase project connection URL
+   SUPABASE_URL=your_supabase_url_here
+
+   # Your Supabase public API key
+   SUPABASE_KEY=your_supabase_key_here
+
+   # Security password to unlock application settings in the UI
+   SECRET_PASSWORD=your_secret_admin_password
+   ```
+
+> 💡 **Tip:** You can configure the thermal printer's local IP address directly inside the application's UI after unlocking the Settings section using the configured `SECRET_PASSWORD`.
+
+---
+
+## 📦 Usage
+
+### Run in Development Mode
+To start the Electron application for development:
+```bash
+npm start
+```
+
+This launches the desktop window showing the printer status, latest command list, and control options.
+
+### Package & Build for Production
+To package the app into a standalone Windows installer (`.exe`) with NSIS:
+```bash
+npm run dist
+```
+The compiled binaries will be generated inside the `dist/` directory.
+
+---
+
+## 🏗️ Architecture & Stack Details
+
+- **Frontend & UI:** Pure HTML5, CSS3 with custom variables, and vanilla ES6 JavaScript (`renderer.js`).
+- **Main Process:** Electron App lifecycle control, IPC handling, and direct communication with thermal printers (`main.js`).
+- **Data Synchronization:** Real-time data-fetching client using `@supabase/supabase-js`.
+- **Hardware Integration:** Raw network thermal printing utilizing `node-thermal-printer` over TCP/IP connection.
+- **Local Storage:** Secure, persistent configuration files handled via `electron-store`.
+
+---
+
+## 🤝 Contributing
+
+Contributions, bug reports, and pull requests are welcome! Feel free to open issues or submit PRs.
+
+---
+
+## 📄 License
+
+Distributed under the **Apache 2.0** License. See [`LICENSE.md`](./LICENSE.md) for details.
+
+---
+
+## 📞 Contact
 
 <div align="center">
 

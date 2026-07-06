@@ -131,7 +131,11 @@ async function obtenerCategoriasPlatos(descripcionesPlatos) {
 
 async function imprimirComandaNormal(printer, comanda, omitirCabecera = false) {
   const esParaLlevar =
-    !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
+    comanda.pedido?.ParaLlevar === true ||
+    !comanda.pedido?.pedido_mesas ||
+    comanda.pedido.pedido_mesas.length === 0 ||
+    (Array.isArray(comanda.pedido.pedido_mesas) &&
+      comanda.pedido.pedido_mesas.some((pm) => pm.mesas?.NumeroMesa === 0));
 
   if (!omitirCabecera) {
     if (esParaLlevar) {
@@ -214,7 +218,18 @@ async function imprimirReimpresionEspecifica(
   omitirCabecera = false
 ) {
   if (!omitirCabecera) {
-    imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+    const pedidoEsParaLlevar =
+      comanda.pedido?.ParaLlevar === true ||
+      !comanda.pedido?.pedido_mesas ||
+      comanda.pedido.pedido_mesas.length === 0 ||
+      (Array.isArray(comanda.pedido.pedido_mesas) &&
+        comanda.pedido.pedido_mesas.some((pm) => pm.mesas?.NumeroMesa === 0));
+
+    if (pedidoEsParaLlevar) {
+      imprimirCabeceraComanda(printer, comanda, "COMANDA PARA LLEVAR");
+    } else {
+      imprimirCabeceraComanda(printer, comanda, "COMANDA DE COCINA");
+    }
   }
 
   printer.setTextSize(1, 2);
@@ -328,7 +343,11 @@ async function imprimirReimpresionEspecifica(
 
 async function imprimirNuevosPlatos(printer, comanda, omitirCabecera = false) {
   const pedidoEsParaLlevar =
-    !comanda.pedido?.pedido_mesas || comanda.pedido.pedido_mesas.length === 0;
+    comanda.pedido?.ParaLlevar === true ||
+    !comanda.pedido?.pedido_mesas ||
+    comanda.pedido.pedido_mesas.length === 0 ||
+    (Array.isArray(comanda.pedido.pedido_mesas) &&
+      comanda.pedido.pedido_mesas.some((pm) => pm.mesas?.NumeroMesa === 0));
 
   if (!omitirCabecera) {
     if (pedidoEsParaLlevar) {
@@ -1654,6 +1673,7 @@ async function checkForPrintJobs() {
         pedido:pedidos!comandas_cocina_PedidoID_fkey (
           PedidoID,
           Fecha,
+          ParaLlevar,
           EmpleadoID,
           empleados:empleados ( Nombre ),
           detallepedidos!detallepedidos_PedidoID_fkey (
